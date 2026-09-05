@@ -159,20 +159,16 @@ async def _ensure_rubrics(session: AsyncSession, jobs: list[JobORM]) -> None:
 
 
 async def _ensure_sla_rules(session: AsyncSession, jobs: list[JobORM]) -> None:
+    """Seed global defaults per priority and one job-specific override."""
     defaults = [
-        ("GLOBAL", None, "TRIAGE", "HIGH", 24),
-        ("GLOBAL", None, "TRIAGE", "MEDIUM", 48),
-        ("GLOBAL", None, "TRIAGE", "LOW", 72),
-        ("GLOBAL", None, "DECISION", "HIGH", 24),
-        ("GLOBAL", None, "DECISION", "MEDIUM", 48),
-        ("GLOBAL", None, "DECISION", "LOW", 72),
+        ("HIGH", 24, 24),
+        ("MEDIUM", 48, 48),
+        ("LOW", 72, 72),
     ]
-    for scope_type, job_id, stage, priority, hours in defaults:
+    for priority, triage_hours, decision_hours in defaults:
         result = await session.execute(
             select(SLARuleORM).where(
-                SLARuleORM.scope_type == scope_type,
                 SLARuleORM.job_id.is_(None),
-                SLARuleORM.stage == stage,
                 SLARuleORM.priority == priority,
             )
         )
@@ -180,35 +176,26 @@ async def _ensure_sla_rules(session: AsyncSession, jobs: list[JobORM]) -> None:
             session.add(
                 SLARuleORM(
                     id=uuid4(),
-                    scope_type=scope_type,
-                    scope_id="",
-                    job_id=job_id,
-                    stage=stage,
+                    job_id=None,
                     priority=priority,
-                    duration_hours=hours,
+                    triage_hours=triage_hours,
+                    decision_hours=decision_hours,
                     active=True,
                 )
             )
     if jobs:
         job = jobs[0]
         result = await session.execute(
-            select(SLARuleORM).where(
-                SLARuleORM.scope_type == "JOB",
-                SLARuleORM.job_id == job.id,
-                SLARuleORM.stage == "TRIAGE",
-                SLARuleORM.priority == "HIGH",
-            )
+            select(SLARuleORM).where(SLARuleORM.job_id == job.id)
         )
         if result.scalar_one_or_none() is None:
             session.add(
                 SLARuleORM(
                     id=uuid4(),
-                    scope_type="JOB",
-                    scope_id=str(job.id),
                     job_id=job.id,
-                    stage="TRIAGE",
                     priority="HIGH",
-                    duration_hours=12,
+                    triage_hours=12,
+                    decision_hours=24,
                     active=True,
                 )
             )
