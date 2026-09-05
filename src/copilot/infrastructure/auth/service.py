@@ -14,12 +14,16 @@ _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 ROLES = {"admin", "hiring_manager", "hr_recruiter"}
 
 
+def _truncate_password(password: str) -> str:
+    """Truncate password to 72 bytes to avoid bcrypt limitation."""
+    return password.encode("utf-8")[:72].decode("utf-8", errors="ignore")
+
 def hash_password(password: str) -> str:
-    return _pwd_context.hash(password)
+    return _pwd_context.hash(_truncate_password(password))
 
 
 def verify_password(password: str, hashed: str) -> bool:
-    return _pwd_context.verify(password, hashed)
+    return _pwd_context.verify(_truncate_password(password), hashed)
 
 
 def create_access_token(user_id: UUID, role: str, expires_delta: timedelta | None = None) -> str:
