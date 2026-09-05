@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand-primary: #1b3370;
+  --brand-accent: #ad7c1d;
+  --surface-page: #F7F8FA;
+  --surface-card: #FFFFFF;
+  --surface-border: #E3E6EB;
+  --surface-muted: #6B7280;
+  --surface-text: #1F2430;
+  --surface-disabled: #C7CBD1;
+  --semantic-success: #2F9E63;
+  --semantic-danger: #C0392B;
+  --semantic-warning: #D97706;
+  --semantic-info: #3B5BA9;
+}
+
+body {
+  background-color: var(--surface-page);
+  color: var(--surface-text);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6, .font-heading {
+  font-family: 'Sora', system-ui, -apple-system, sans-serif;
+}
