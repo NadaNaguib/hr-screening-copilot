@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
@@ -11,6 +11,12 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from copilot.infrastructure.db.base import Base
+
+if TYPE_CHECKING:
+    from copilot.infrastructure.db.models_rubric import RubricORM
+    from copilot.infrastructure.db.models_screening import CandidateORM
+    from copilot.infrastructure.db.models_workflow import ReviewTaskORM, SLARuleORM
+
 
 
 def _uuid() -> uuid.UUID:
@@ -47,10 +53,10 @@ class JobORM(Base):
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
 
-    rubric: Mapped["RubricORM"] = relationship(back_populates="job", uselist=False)
-    candidates: Mapped[list["CandidateORM"]] = relationship(back_populates="job")
-    review_tasks: Mapped[list["ReviewTaskORM"]] = relationship(back_populates="job")
-    sla_rules: Mapped[list["SLARuleORM"]] = relationship(back_populates="job")
+    rubric: Mapped[RubricORM] = relationship(back_populates="job", uselist=False)
+    candidates: Mapped[list[CandidateORM]] = relationship(back_populates="job")
+    review_tasks: Mapped[list[ReviewTaskORM]] = relationship(back_populates="job")
+    sla_rules: Mapped[list[SLARuleORM]] = relationship(back_populates="job")
 
 
 class DocumentORM(Base):
@@ -77,4 +83,4 @@ class ChunkORM(Base):
     page_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     metadata_: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
 
-    document: Mapped["DocumentORM"] = relationship()
+    document: Mapped[DocumentORM] = relationship()

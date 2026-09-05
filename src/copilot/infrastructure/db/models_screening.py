@@ -3,13 +3,18 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import JSON, DateTime, Float, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from copilot.infrastructure.db.base import Base
+
+if TYPE_CHECKING:
+    from copilot.infrastructure.db.models_core import JobORM
+    from copilot.infrastructure.db.models_workflow import ReviewTaskORM
+
 
 
 def _uuid() -> uuid.UUID:
@@ -38,12 +43,12 @@ class CandidateORM(Base):
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
 
-    job: Mapped["JobORM"] = relationship(back_populates="candidates")
-    review_tasks: Mapped[list["ReviewTaskORM"]] = relationship(back_populates="candidate")
-    evidence: Mapped[list["EvidenceORM"]] = relationship(
+    job: Mapped[JobORM] = relationship(back_populates="candidates")
+    review_tasks: Mapped[list[ReviewTaskORM]] = relationship(back_populates="candidate")
+    evidence: Mapped[list[EvidenceORM]] = relationship(
         back_populates="candidate", cascade="all, delete-orphan"
     )
-    scores: Mapped[list["RubricScoreORM"]] = relationship(
+    scores: Mapped[list[RubricScoreORM]] = relationship(
         back_populates="candidate", cascade="all, delete-orphan"
     )
 
@@ -65,7 +70,7 @@ class EvidenceORM(Base):
     metadata_: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
-    candidate: Mapped["CandidateORM"] = relationship(back_populates="evidence")
+    candidate: Mapped[CandidateORM] = relationship(back_populates="evidence")
 
 
 class RubricScoreORM(Base):
@@ -84,4 +89,4 @@ class RubricScoreORM(Base):
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
 
-    candidate: Mapped["CandidateORM"] = relationship(back_populates="scores")
+    candidate: Mapped[CandidateORM] = relationship(back_populates="scores")

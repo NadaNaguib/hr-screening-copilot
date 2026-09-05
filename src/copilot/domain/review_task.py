@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from uuid import UUID, uuid4
 
 from copilot.domain.errors import AuthorizationError, ValidationError
 
@@ -69,9 +70,9 @@ def _requires_reason(action: ReviewAction) -> bool:
 
 @dataclass
 class ReviewTask:
-    id: int | None = None
-    candidate_id: int | None = None
-    job_id: int | None = None
+    id: UUID = field(default_factory=uuid4)
+    candidate_id: UUID | None = None
+    job_id: UUID | None = None
     status: ReviewStatus = ReviewStatus.PENDING_TRIAGE
     triage_deadline_at: datetime | None = None
     decision_deadline_at: datetime | None = None
@@ -81,8 +82,8 @@ class ReviewTask:
     manager_comment: str | None = None
     admin_override_reason: str | None = None
     audit_log: list[dict] = field(default_factory=list)
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    updated_at: datetime = field(default_factory=datetime.utcnow)
 
     def allowed_actions(self, role: str) -> list[ReviewAction]:
         return _ROLE_ACTIONS.get(role, {}).get(self.status, [])
@@ -95,7 +96,7 @@ class ReviewTask:
         role: str,
         action: ReviewAction,
         reason: str | None = None,
-        actor_id: int | None = None,
+        actor_id: UUID | None = None,
     ) -> None:
         if not self.is_action_allowed(role, action):
             raise AuthorizationError(
@@ -120,7 +121,7 @@ class ReviewTask:
         self.audit_log.append(
             {
                 "actor_role": role,
-                "actor_id": actor_id,
+                "actor_id": str(actor_id) if actor_id else None,
                 "action": action.value,
                 "reason": reason,
                 "to_status": self.status.value,

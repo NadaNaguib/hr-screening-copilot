@@ -3,14 +3,19 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, DateTime, Enum, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from copilot.domain.review_task import ReviewStatus
 from copilot.infrastructure.db.base import Base
+
+if TYPE_CHECKING:
+    from copilot.infrastructure.db.models_core import JobORM
+    from copilot.infrastructure.db.models_screening import CandidateORM
+
 
 
 def _uuid() -> uuid.UUID:
@@ -41,8 +46,8 @@ class ReviewTaskORM(Base):
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
 
-    candidate: Mapped["CandidateORM"] = relationship(back_populates="review_tasks")
-    job: Mapped["JobORM"] = relationship(back_populates="review_tasks")
+    candidate: Mapped[CandidateORM] = relationship(back_populates="review_tasks")
+    job: Mapped[JobORM] = relationship(back_populates="review_tasks")
 
 
 class SLARuleORM(Base):
@@ -62,7 +67,7 @@ class SLARuleORM(Base):
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
 
-    job: Mapped["JobORM"] = relationship(back_populates="sla_rules")
+    job: Mapped[JobORM] = relationship(back_populates="sla_rules")
 
 
 class ShortlistORM(Base):
@@ -74,7 +79,7 @@ class ShortlistORM(Base):
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
-    entries: Mapped[list["ShortlistEntryORM"]] = relationship(
+    entries: Mapped[list[ShortlistEntryORM]] = relationship(
         back_populates="shortlist", cascade="all, delete-orphan"
     )
 
@@ -91,7 +96,7 @@ class ShortlistEntryORM(Base):
     status: Mapped[str] = mapped_column(String(50), nullable=False)
     manager_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    shortlist: Mapped["ShortlistORM"] = relationship(back_populates="entries")
+    shortlist: Mapped[ShortlistORM] = relationship(back_populates="entries")
 
 
 class AuditEventORM(Base):

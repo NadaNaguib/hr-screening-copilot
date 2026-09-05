@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any
+from uuid import UUID, uuid4
 
 from copilot.domain.errors import ValidationError
 
@@ -22,8 +23,8 @@ class CandidateStatus(str, Enum):
 class Candidate:
     """A job applicant with parsed profile data."""
 
-    id: int | None = None
-    job_id: int | None = None
+    id: UUID = field(default_factory=uuid4)
+    job_id: UUID | None = None
     full_name: str = ""
     email: str = ""
     phone: str = ""
@@ -35,8 +36,9 @@ class Candidate:
     cv_sha256: str = ""
     status: CandidateStatus = CandidateStatus.UPLOADED
     overall_score: float | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+    priority: str = "MEDIUM"
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    updated_at: datetime = field(default_factory=datetime.utcnow)
 
     def mark_processing(self) -> None:
         """Transition to processing."""
@@ -52,8 +54,8 @@ class Candidate:
         """Transition to failed."""
         self.status = CandidateStatus.FAILED
 
-    def add_job(self, job_id: int) -> None:
+    def add_job(self, job_id: UUID) -> None:
         """Assign to a job."""
-        if job_id <= 0:
+        if job_id is None:
             raise ValidationError("Invalid job_id")
         self.job_id = job_id
