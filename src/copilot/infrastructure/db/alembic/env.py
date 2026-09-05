@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from copilot.infrastructure.db.base import Base
 from copilot.infrastructure.db.config import get_database_url
+from copilot.infrastructure.db import models  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
