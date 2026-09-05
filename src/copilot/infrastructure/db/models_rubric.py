@@ -3,12 +3,17 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from copilot.infrastructure.db.base import Base
+
+if TYPE_CHECKING:
+    from copilot.infrastructure.db.models_core import JobORM
+
 
 
 def _uuid() -> uuid.UUID:
@@ -29,8 +34,8 @@ class RubricORM(Base):
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
 
-    job: Mapped["JobORM"] = relationship(back_populates="rubric")
-    criteria: Mapped[list["RubricCriterionORM"]] = relationship(
+    job: Mapped[JobORM] = relationship(back_populates="rubric")
+    criteria: Mapped[list[RubricCriterionORM]] = relationship(
         back_populates="rubric", cascade="all, delete-orphan"
     )
 
@@ -49,4 +54,4 @@ class RubricCriterionORM(Base):
     max_score: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
-    rubric: Mapped["RubricORM"] = relationship(back_populates="criteria")
+    rubric: Mapped[RubricORM] = relationship(back_populates="criteria")

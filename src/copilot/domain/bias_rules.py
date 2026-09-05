@@ -4,7 +4,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-
 BIAS_KEYWORDS = {
     "gender": ["male", "female", "he", "she", "him", "her", "man", "woman"],
     "ethnicity": ["nationality", "ethnic", "race", "racial"],

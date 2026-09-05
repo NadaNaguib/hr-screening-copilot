@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from uuid import UUID, uuid4
 
 
 class ShortlistFormat(str, Enum):
@@ -17,7 +18,7 @@ class ShortlistFormat(str, Enum):
 class ShortlistEntry:
     """A candidate in a shortlist export."""
 
-    candidate_id: int
+    candidate_id: UUID
     full_name: str
     email: str
     overall_score: float
@@ -29,12 +30,12 @@ class ShortlistEntry:
 class Shortlist:
     """Exportable shortlist for a job."""
 
-    id: int | None = None
-    job_id: int | None = None
+    id: UUID = field(default_factory=uuid4)
+    job_id: UUID | None = None
     name: str = ""
     entries: list[ShortlistEntry] = field(default_factory=list)
-    created_at: datetime | None = None
-    created_by: int | None = None
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_by: UUID | None = None
 
     def sort_by_score(self) -> None:
         """Sort entries descending by overall score."""
