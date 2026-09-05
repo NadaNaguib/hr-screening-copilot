@@ -64,20 +64,12 @@ RUBRIC_TEMPLATE = [
     ("Relevant experience", "Years and relevance of prior roles.", "MEDIUM", True, ["experience", "senior"], 1, 5),
 ]
 
-CANDIDATE_NAMES = [
-    ("Alice Johnson", "alice.johnson@example.com"),
-    ("Bob Smith", "bob.smith@example.com"),
-    ("Carol White", "carol.white@example.com"),
-    ("David Brown", "david.brown@example.com"),
-    ("Eva Green", "eva.green@example.com"),
-]
-
-CV_TEXTS = [
-    "Senior Python engineer with 8 years of experience building FastAPI microservices and PostgreSQL data pipelines.",
-    "Frontend developer specialized in React, TypeScript, and Tailwind CSS with a strong eye for UX.",
-    "DevOps practitioner experienced with Docker, Kubernetes, Terraform, and AWS CI/CD pipelines.",
-    "Full-stack developer comfortable with Python and React, leading small teams on SaaS products.",
-    "Junior backend developer with Python and Django experience, eager to learn FastAPI.",
+CANDIDATE_PROFILES = [
+    ("Alice Johnson", "alice.johnson@example.com", "Senior Python engineer with 8 years of experience building FastAPI microservices and PostgreSQL data pipelines.", ["Python", "FastAPI", "PostgreSQL", "System Design"], 8.0),
+    ("Bob Smith", "bob.smith@example.com", "Frontend developer specialized in React, TypeScript, and Tailwind CSS with a strong eye for UX.", ["React", "TypeScript", "Tailwind CSS", "UX"], 5.0),
+    ("Carol White", "carol.white@example.com", "DevOps practitioner experienced with Docker, Kubernetes, Terraform, and AWS CI/CD pipelines.", ["Docker", "Kubernetes", "Terraform", "AWS"], 7.0),
+    ("David Brown", "david.brown@example.com", "Full-stack developer comfortable with Python and React, leading small teams on SaaS products.", ["Python", "React", "Leadership", "SaaS"], 6.0),
+    ("Eva Green", "eva.green@example.com", "Junior backend developer with Python and Django experience, eager to learn FastAPI.", ["Python", "Django", "Learning"], 2.0),
 ]
 
 
@@ -159,7 +151,6 @@ async def _ensure_rubrics(session: AsyncSession, jobs: list[JobORM]) -> None:
 
 
 async def _ensure_sla_rules(session: AsyncSession, jobs: list[JobORM]) -> None:
-    """Seed global defaults per priority and one job-specific override."""
     defaults = [
         ("HIGH", 24, 24),
         ("MEDIUM", 48, 48),
@@ -185,9 +176,7 @@ async def _ensure_sla_rules(session: AsyncSession, jobs: list[JobORM]) -> None:
             )
     if jobs:
         job = jobs[0]
-        result = await session.execute(
-            select(SLARuleORM).where(SLARuleORM.job_id == job.id)
-        )
+        result = await session.execute(select(SLARuleORM).where(SLARuleORM.job_id == job.id))
         if result.scalar_one_or_none() is None:
             session.add(
                 SLARuleORM(
@@ -203,7 +192,7 @@ async def _ensure_sla_rules(session: AsyncSession, jobs: list[JobORM]) -> None:
 
 
 async def _ensure_candidates(session: AsyncSession, jobs: list[JobORM]) -> None:
-    for idx, (name, email) in enumerate(CANDIDATE_NAMES):
+    for idx, (full_name, email, cv_text, skills, years) in enumerate(CANDIDATE_PROFILES):
         job = jobs[idx % len(jobs)]
         result = await session.execute(select(CandidateORM).where(CandidateORM.email == email))
         candidate = result.scalar_one_or_none()
@@ -211,16 +200,14 @@ async def _ensure_candidates(session: AsyncSession, jobs: list[JobORM]) -> None:
             candidate = CandidateORM(
                 id=uuid4(),
                 job_id=job.id,
-                name=name,
+                full_name=full_name,
                 email=email,
                 phone="+1-555-0000",
-                cv_text=CV_TEXTS[idx % len(CV_TEXTS)],
+                years_of_experience=years,
+                skills=skills,
+                raw_text=cv_text,
                 cv_sha256=f"demo-sha-{idx:04d}",
-                status="PENDING",
-                overall_score=None,
-                priority=job.priority,
-                source="seed",
-                metadata={"seeded": True, "index": idx},
+                status="uploaded",
             )
             session.add(candidate)
             await session.flush()
@@ -234,8 +221,6 @@ async def _ensure_candidates(session: AsyncSession, jobs: list[JobORM]) -> None:
                         job_id=job.id,
                         candidate_id=candidate.id,
                         status="PENDING_TRIAGE",
-                        stage="TRIAGE",
-                        priority=job.priority,
                     )
                 )
     await session.flush()
