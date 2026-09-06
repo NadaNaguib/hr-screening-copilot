@@ -1,38 +1,55 @@
 import { useState } from "react"
-import { apiClient } from "../lib/apiClient"
+import { Loader2 } from "lucide-react"
+import { createSSEConnection, SSEStatus } from "../lib/sse"
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api/v1"
 
 export function CopilotChat() {
   const [question, setQuestion] = useState("")
   const [answer, setAnswer] = useState("")
   const [citations, setCitations] = useState<{ quote: string; source: string; page: number | null }[]>([])
   const [loading, setLoading] = useState(false)
+  const [status, setStatus] = useState<SSEStatus>("closed")
 
-  async function ask(e: React.FormEvent) {
+  function ask(e: React.FormEvent) {
     e.preventDefault()
+    if (!question.trim()) return
+
     setAnswer("")
     setCitations([])
     setLoading(true)
-    try {
-      const res = await apiClient.post("/chat", { question }, { responseType: "text" })
-      // Simple non-SSE fallback: parse lines
-      const lines = res.data.split("\n").filter((l: string) => l.startsWith("data:"))
-      let full = ""
-      let cites: any[] = []
-      for (const line of lines) {
-        try {
-          const parsed = JSON.parse(line.replace("data:", "").trim())
-          if (parsed.type === "answer_chunk") {
-            full += parsed.data
-            if (parsed.citations) cites = parsed.citations
+    setStatus("connecting")
+
+    const cleanup = createSSEConnection({
+      url: `${API_BASE}/chat`,
+      body: { question },
+      onStatus: setStatus,
+      onEvent: (event) => {
+        if (event.type === "answer_chunk") {
+          setAnswer((prev) => prev + (typeof event.data === "string" ? event.data : ""))
+          const cites = (event.data as any)?.citations || (event as any).citations
+          if (Array.isArray(cites) && cites.length > 0) {
+            setCitations(cites)
           }
-        } catch {}
-      }
-      setAnswer(full || "(no answer)")
-      setCitations(cites)
-    } finally {
+        } else if (event.type === "done" || (event as any).event === "done") {
+          setLoading(false)
+          setStatus("closed")
+        }
+      },
+    })
+
+    return () => {
+      cleanup()
       setLoading(false)
     }
   }
+
+  const statusText = {
+    connecting: "Connecting…",
+    open: "Streaming…",
+    error: "Connection lost — retrying…",
+    closed: "",
+  }[status]
 
   return (
     <div className="space-y-4">
@@ -44,10 +61,21 @@ export function CopilotChat() {
           placeholder="Ask about a candidate or job..."
           className="flex-1 px-3 py-2 border border-surface-border rounded-md"
         />
-        <button type="submit" className="px-4 py-2 bg-brand-primary text-white rounded-md" disabled={loading}>
+        <button type="submit" className="px-4 py-2 bg-brand-primary text-white rounded-md flex items-center gap-2" disabled={loading}>
+          {loading && <Loader2 className="w-4 h-4 animate-spin" />}
           {loading ? "Asking..." : "Ask"}
         </button>
       </form>
+
+      {statusText && (
+        <div className={`text-sm px-3 py-2 rounded-md inline-flex items-center gap-2 ${
+          status === "error" ? "bg-semantic-danger/10 text-semantic-danger" : "bg-semantic-info/10 text-semantic-info"
+        }`}>
+          {status === "error" && <span className="w-2 h-2 rounded-full bg-semantic-danger animate-pulse" />}
+          {statusText}
+        </div>
+      )}
+
       {answer && (
         <div className="bg-white p-4 rounded-lg border border-surface-border">
           <h3 className="font-medium mb-2">Answer</h3>

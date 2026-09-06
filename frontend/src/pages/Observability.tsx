@@ -1,19 +1,54 @@
 import { useEffect, useState } from "react"
+import toast from "react-hot-toast"
 import { apiClient } from "../lib/apiClient"
+import { Skeleton } from "../components/Skeleton"
 
 export function Observability() {
   const [settings, setSettings] = useState({ simulate_agent_failure: false, gemini_model: "", log_level: "" })
   const [cost, setCost] = useState({ calls: 0, input_tokens: 0, output_tokens: 0, cost_usd: 0 })
+  const [loading, setLoading] = useState(true)
+  const [toggling, setToggling] = useState(false)
 
   useEffect(() => {
-    apiClient.get("/observability/settings").then((r) => setSettings(r.data))
-    apiClient.get("/observability/token-cost").then((r) => setCost(r.data))
+    async function load() {
+      try {
+        const [settingsRes, costRes] = await Promise.all([
+          apiClient.get("/observability/settings"),
+          apiClient.get("/observability/token-cost"),
+        ])
+        setSettings(settingsRes.data)
+        setCost(costRes.data)
+      } catch (err: any) {
+        toast.error(err.message || "Failed to load observability data")
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
   }, [])
 
   async function toggleSimulate() {
     const newValue = !settings.simulate_agent_failure
-    await apiClient.post(`/observability/simulate-agent-failure?value=${newValue}`)
-    setSettings((s) => ({ ...s, simulate_agent_failure: newValue }))
+    setToggling(true)
+    try {
+      await apiClient.post(`/observability/simulate-agent-failure?value=${newValue}`)
+      setSettings((s) => ({ ...s, simulate_agent_failure: newValue }))
+      toast.success("Simulation setting updated")
+    } catch (err: any) {
+      toast.error(err.message || "Failed to toggle simulation")
+    } finally {
+      setToggling(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-heading font-semibold text-surface-text">Observability</h2>
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-24 w-full" />
+      </div>
+    )
   }
 
   return (
@@ -31,7 +66,8 @@ export function Observability() {
           <span>SIMULATE_AGENT_FAILURE</span>
           <button
             onClick={toggleSimulate}
-            className={`px-4 py-2 rounded-md text-white ${settings.simulate_agent_failure ? "bg-semantic-danger" : "bg-semantic-success"}`}
+            disabled={toggling}
+            className={`px-4 py-2 rounded-md text-white disabled:opacity-50 ${settings.simulate_agent_failure ? "bg-semantic-danger" : "bg-semantic-success"}`}
           >
             {settings.simulate_agent_failure ? "ON" : "OFF"}
           </button>

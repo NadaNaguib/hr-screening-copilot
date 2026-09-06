@@ -1,14 +1,15 @@
 """Shared pytest fixtures."""
 from __future__ import annotations
 
-import asyncio
+import os
 from collections.abc import AsyncGenerator
 from datetime import datetime
 from uuid import uuid4
 
-import pytest
 import pytest_asyncio
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from copilot.infrastructure.db.base import Base
 from copilot.infrastructure.db.models import (
@@ -19,29 +20,52 @@ from copilot.infrastructure.db.models import (
     UserORM,
 )
 
-TEST_DATABASE_URL = "postgresql+asyncpg://copilot:copilot@localhost:5432/hr_screening_test"
+TEST_DATABASE_URL = os.environ.get(
+    "TEST_DATABASE_URL",
+    "postgresql+asyncpg://copilot:copilot@localhost:5432/hr_screening_test",
+)
+
+# Ensure the application and its global session factory bind to the test database.
+os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
 
 @pytest_asyncio.fixture(scope="session")
 async def engine():
-    engine = create_async_engine(TEST_DATABASE_URL, future=True, echo=False)
+    engine = create_async_engine(
+        TEST_DATABASE_URL,
+        future=True,
+        echo=False,
+        poolclass=NullPool,
+    )
     async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     yield engine
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+@pytest_asyncio.fixture(autouse=True)
+async def reset_db(engine):
+    """Reset all tables before each test to ensure isolation."""
+    async with engine.begin() as conn:
+        table_names = ", ".join(t.name for t in Base.metadata.sorted_tables)
+        await conn.execute(text(f"TRUNCATE TABLE {table_names} RESTART IDENTITY CASCADE"))
+    yield
     await engine.dispose()
 
 
 @pytest_asyncio.fixture
 async def session(engine) -> AsyncGenerator[AsyncSession, None]:
-    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    session_factory = async_sessionmaker(
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
     async with session_factory() as session:
         yield session
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def job(session: AsyncSession) -> JobORM:
     job = JobORM(
         id=uuid4(),
@@ -57,7 +81,7 @@ async def job(session: AsyncSession) -> JobORM:
     return job
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def candidate(session: AsyncSession, job: JobORM) -> CandidateORM:
     candidate = CandidateORM(
         id=uuid4(),
@@ -77,7 +101,7 @@ async def candidate(session: AsyncSession, job: JobORM) -> CandidateORM:
     return candidate
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def review_task(session: AsyncSession, job: JobORM, candidate: CandidateORM) -> ReviewTaskORM:
     task = ReviewTaskORM(
         id=uuid4(),
