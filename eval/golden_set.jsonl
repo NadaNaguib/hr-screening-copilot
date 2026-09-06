@@ -1,5 +1,0 @@
-{"question": "Which candidate has the most Python and FastAPI experience?", "expected_answer_contains": ["Alice", "Python", "FastAPI"], "job_title": "Senior Python Backend Engineer"}
-{"question": "Who is the frontend specialist with React and TypeScript skills?", "expected_answer_contains": ["Frontend", "React", "TypeScript"], "job_title": "Frontend React Developer"}
-{"question": "Which candidate is best suited for a DevOps role?", "expected_answer_contains": ["DevOps", "Docker", "Kubernetes"], "job_title": "DevOps Engineer"}
-{"question": "List candidates with system design experience.", "expected_answer_contains": ["system design", "scalable"], "job_title": "Senior Python Backend Engineer"}
-{"question": "Which candidates should be shortlisted for a high-priority backend role?", "expected_answer_contains": ["shortlist", "Python"], "job_title": "Senior Python Backend Engineer"}

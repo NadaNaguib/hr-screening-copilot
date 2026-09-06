@@ -1,14 +1,29 @@
-# Evaluation Report
-Average score: 1.00
-Samples evaluated: 5
+# Evaluation Results
+
+## Methodology
+- `eval/golden_set.jsonl` contains ≥25 questions with expected answers and evidence spans.
+- `eval/run_eval.py` runs each question through the `ask_copilot` use case (or the plain-RAG fallback) and computes:
+  - hit-rate@k
+  - groundedness / citation coverage
+  - refusal correctness for adversarial questions
+
 ## Results
-- **Which candidate has the most Python and FastAPI experience?** — score 1.00
-  - Expected terms: Alice, Python, FastAPI
-- **Who is the frontend specialist with React and TypeScript skills?** — score 1.00
-  - Expected terms: Frontend, React, TypeScript
-- **Which candidate is best suited for a DevOps role?** — score 1.00
-  - Expected terms: DevOps, Docker, Kubernetes
-- **List candidates with system design experience.** — score 1.00
-  - Expected terms: system design, scalable
-- **Which candidates should be shortlisted for a high-priority backend role?** — score 1.00
-  - Expected terms: shortlist, Python
+
+Run the evaluation with:
+
+```bash
+python eval/run_eval.py
+```
+
+Results will be appended here after each run.
+
+## Adversarial set
+Includes:
+- Out-of-corpus question
+- Ambiguous question
+- Direct prompt injection attempt
+- Prompt injection via synthetic CV content
+- Conflicting sources question
+
+## Notes
+- Any weak scores are recorded honestly; they drive backlog improvements.

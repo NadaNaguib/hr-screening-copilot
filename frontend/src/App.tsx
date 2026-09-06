@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom"
 import { useEffect, useState } from "react"
-import { getRole, getToken, isAdmin } from "./lib/auth"
+import { getRole, getToken } from "./lib/auth"
 import { Sidebar } from "./layout/Sidebar"
 import { Login } from "./pages/Login"
 import { JobsAndCandidates } from "./pages/JobsAndCandidates"
@@ -9,19 +9,6 @@ import { ReviewQueue } from "./pages/ReviewQueue"
 import { Observability } from "./pages/Observability"
 import { UserManagement } from "./pages/UserManagement"
 import { SettingsSlaRules } from "./pages/SettingsSlaRules"
-
-function RequireAdmin({ children }: { children: JSX.Element }) {
-  const navigate = useNavigate()
-  const admin = isAdmin()
-
-  useEffect(() => {
-    if (!admin) {
-      navigate("/jobs", { replace: true })
-    }
-  }, [admin, navigate])
-
-  return admin ? children : null
-}
 
 function PrivateLayout() {
   const navigate = useNavigate()
@@ -44,9 +31,9 @@ function PrivateLayout() {
           <Route path="/jobs" element={<JobsAndCandidates />} />
           <Route path="/chat" element={<CopilotChat />} />
           <Route path="/queue" element={<ReviewQueue />} />
-          <Route path="/observability" element={<RequireAdmin><Observability /></RequireAdmin>} />
-          <Route path="/users" element={<RequireAdmin><UserManagement /></RequireAdmin>} />
-          <Route path="/sla" element={<RequireAdmin><SettingsSlaRules /></RequireAdmin>} />
+          <Route path="/observability" element={<Observability />} />
+          <Route path="/users" element={<UserManagement />} />
+          <Route path="/sla" element={<SettingsSlaRules />} />
         </Routes>
       </main>
     </div>

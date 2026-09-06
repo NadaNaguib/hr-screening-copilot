@@ -12,7 +12,7 @@ from copilot.infrastructure.auth.service import create_access_token, hash_passwo
 from copilot.infrastructure.db.models import UserORM
 from copilot.presentation.dependencies import get_session, require_roles
 
-router = APIRouter(prefix="/auth")
+router = APIRouter()
 
 
 class LoginRequest(BaseModel):
@@ -34,7 +34,7 @@ class UserResponse(BaseModel):
     role: str
 
 
-@router.post("/login")
+@router.post("/auth/login")
 async def login(request: LoginRequest, session: AsyncSession = Depends(get_session)) -> dict:
     result = await session.execute(select(UserORM).where(UserORM.email == request.email, UserORM.is_active))
     user = result.scalar_one_or_none()
@@ -47,7 +47,7 @@ async def login(request: LoginRequest, session: AsyncSession = Depends(get_sessi
     return {"access_token": token, "token_type": "bearer", "role": user.role, "user_id": str(user.id)}
 
 
-@router.post("/users", response_model=UserResponse)
+@router.post("/auth/users", response_model=UserResponse)
 async def create_user(
     request: UserCreateRequest,
     session: AsyncSession = Depends(get_session),
@@ -65,7 +65,7 @@ async def create_user(
     return user
 
 
-@router.get("/users", response_model=list[UserResponse])
+@router.get("/auth/users", response_model=list[UserResponse])
 async def list_users(
     session: AsyncSession = Depends(get_session),
     admin_user: dict = Depends(require_roles("admin")),
