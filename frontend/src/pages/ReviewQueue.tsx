@@ -37,7 +37,7 @@ export function ReviewQueue() {
   async function fetchTasks() {
     setLoading(true)
     try {
-      const res = await apiClient.get("/review-queue")
+      const res = await apiClient.get("/review-queue", { silent: true })
       setTasks(res.data)
     } catch (err: any) {
       toast.error(err.message || "Failed to load review queue")
@@ -61,7 +61,7 @@ export function ReviewQueue() {
     )
 
     try {
-      await apiClient.post(endpoint, { task_id: taskId, action, reason: reasonText })
+      await apiClient.post(endpoint, { task_id: taskId, action, reason: reasonText }, { silent: true })
       toast.success("Action recorded")
       await fetchTasks()
     } catch (err: any) {
@@ -91,7 +91,7 @@ export function ReviewQueue() {
     )
 
     try {
-      await apiClient.post("/review-queue/admin-override", { task_id: taskId, reason: reasonText })
+      await apiClient.post("/review-queue/admin-override", { task_id: taskId, reason: reasonText }, { silent: true })
       toast.success("Override applied")
       await fetchTasks()
     } catch (err: any) {

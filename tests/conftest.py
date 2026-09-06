@@ -1,13 +1,15 @@
 """Shared pytest fixtures."""
 from __future__ import annotations
 
-import asyncio
+import os
 from collections.abc import AsyncGenerator
 from datetime import datetime
 from uuid import uuid4
 
-import pytest
 import pytest_asyncio
+import pytest_asyncio
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from copilot.infrastructure.db.base import Base
@@ -19,13 +21,17 @@ from copilot.infrastructure.db.models import (
     UserORM,
 )
 
-TEST_DATABASE_URL = "postgresql+asyncpg://copilot:copilot@localhost:5432/hr_screening_test"
+TEST_DATABASE_URL = os.environ.get(
+    "TEST_DATABASE_URL",
+    "postgresql+asyncpg://copilot:copilot@localhost:5432/hr_screening_test",
+)
 
 
 @pytest_asyncio.fixture(scope="session")
 async def engine():
     engine = create_async_engine(TEST_DATABASE_URL, future=True, echo=False)
     async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     yield engine
@@ -41,7 +47,7 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def job(session: AsyncSession) -> JobORM:
     job = JobORM(
         id=uuid4(),
@@ -57,7 +63,7 @@ async def job(session: AsyncSession) -> JobORM:
     return job
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def candidate(session: AsyncSession, job: JobORM) -> CandidateORM:
     candidate = CandidateORM(
         id=uuid4(),
@@ -77,7 +83,7 @@ async def candidate(session: AsyncSession, job: JobORM) -> CandidateORM:
     return candidate
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def review_task(session: AsyncSession, job: JobORM, candidate: CandidateORM) -> ReviewTaskORM:
     task = ReviewTaskORM(
         id=uuid4(),

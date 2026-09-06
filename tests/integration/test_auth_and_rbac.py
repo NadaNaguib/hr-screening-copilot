@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-import pytest
+import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 
 from copilot.infrastructure.auth.service import create_access_token, hash_password
@@ -11,7 +11,7 @@ from copilot.infrastructure.db.models import UserORM
 from copilot.presentation.main import app
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def admin_user(session):
     user = UserORM(
         id=uuid4(),
@@ -27,7 +27,7 @@ async def admin_user(session):
     return user
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def recruiter_user(session):
     user = UserORM(
         id=uuid4(),
@@ -43,7 +43,7 @@ async def recruiter_user(session):
     return user
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def manager_user(session):
     user = UserORM(
         id=uuid4(),
