@@ -10,7 +10,7 @@ export function Sidebar() {
     { to: "/queue", label: "Review Queue", roles: ["admin", "hr_recruiter", "hiring_manager"] },
     { to: "/observability", label: "Observability", roles: ["admin"] },
     { to: "/users", label: "User Management", roles: ["admin"] },
-    { to: "/sla", label: "SLA Rules", roles: ["admin", "hr_recruiter", "hiring_manager"] },
+    { to: "/sla", label: "SLA Rules", roles: ["admin"] },
   ]
 
   return (

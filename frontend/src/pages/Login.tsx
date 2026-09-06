@@ -5,7 +5,7 @@ import { setAuth } from "../lib/auth"
 
 export function Login({ onLogin }: { onLogin: () => void }) {
   const [email, setEmail] = useState("admin@example.com")
-  const [password, setPassword] = useState("admin")
+  const [password, setPassword] = useState("password123")
   const [error, setError] = useState("")
   const navigate = useNavigate()
 

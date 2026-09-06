@@ -4,22 +4,24 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from uuid import UUID
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from copilot.infrastructure.config.settings import get_settings
-
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ROLES = {"admin", "hiring_manager", "hr_recruiter"}
 
 
 def hash_password(password: str) -> str:
-    return _pwd_context.hash(password)
+    """Hash a password using bcrypt."""
+    pw = password.encode("utf-8")[:72]
+    return bcrypt.hashpw(pw, bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(password: str, hashed: str) -> bool:
-    return _pwd_context.verify(password, hashed)
+    """Verify a password against a bcrypt hash."""
+    pw = password.encode("utf-8")[:72]
+    return bcrypt.checkpw(pw, hashed.encode("utf-8"))
 
 
 def create_access_token(user_id: UUID, role: str, expires_delta: timedelta | None = None) -> str:
