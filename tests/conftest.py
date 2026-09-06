@@ -44,6 +44,13 @@ async def engine():
     yield engine
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+@pytest_asyncio.fixture(autouse=True)
+async def reset_db(engine):
+    """Reset all tables before each test to ensure isolation."""
+    async with engine.begin() as conn:
+        table_names = ", ".join(t.name for t in Base.metadata.sorted_tables)
+        await conn.execute(text(f"TRUNCATE TABLE {table_names} RESTART IDENTITY CASCADE"))
+    yield
     await engine.dispose()
 
 
