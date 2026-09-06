@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react"
+import toast from "react-hot-toast"
 import { apiClient } from "../lib/apiClient"
 import { isAdmin, isRecruiter } from "../lib/auth"
+import { Skeleton } from "../components/Skeleton"
 
 interface Job {
   id: string
@@ -26,7 +28,8 @@ export function JobsAndCandidates() {
   const [selectedJob, setSelectedJob] = useState<string>("")
   const [newJobTitle, setNewJobTitle] = useState("")
   const [file, setFile] = useState<File | null>(null)
-  const [message, setMessage] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     fetchJobs()
@@ -34,38 +37,79 @@ export function JobsAndCandidates() {
   }, [selectedJob])
 
   async function fetchJobs() {
-    const res = await apiClient.get("/jobs")
-    setJobs(res.data)
+    try {
+      const res = await apiClient.get("/jobs")
+      setJobs(res.data)
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load jobs")
+    }
   }
 
   async function fetchCandidates() {
-    const params = selectedJob ? { job_id: selectedJob } : {}
-    const res = await apiClient.get("/candidates", { params })
-    setCandidates(res.data)
+    try {
+      const params = selectedJob ? { job_id: selectedJob } : {}
+      const res = await apiClient.get("/candidates", { params })
+      setCandidates(res.data)
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load candidates")
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function createJob(e: React.FormEvent) {
     e.preventDefault()
-    await apiClient.post("/jobs", { title: newJobTitle })
-    setNewJobTitle("")
-    fetchJobs()
+    if (!newJobTitle.trim()) return
+    setSubmitting(true)
+    try {
+      await apiClient.post("/jobs", { title: newJobTitle })
+      setNewJobTitle("")
+      toast.success("Job created")
+      await fetchJobs()
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create job")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   async function uploadCandidate(e: React.FormEvent) {
     e.preventDefault()
     if (!file) return
+    setSubmitting(true)
     const form = new FormData()
     form.append("file", file)
     if (selectedJob) form.append("job_id", selectedJob)
-    await apiClient.post("/candidates", form, { headers: { "Content-Type": "multipart/form-data" } })
-    setFile(null)
-    fetchCandidates()
+    try {
+      await apiClient.post("/candidates", form, { headers: { "Content-Type": "multipart/form-data" } })
+      setFile(null)
+      toast.success("Candidate uploaded")
+      await fetchCandidates()
+    } catch (err: any) {
+      toast.error(err.message || "Failed to upload candidate")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   async function runPipeline(candidateId: string) {
-    await apiClient.post("/pipeline/run", { candidate_id: candidateId })
-    setMessage("Pipeline started")
-    fetchCandidates()
+    try {
+      await apiClient.post("/pipeline/run", { candidate_id: candidateId })
+      toast.success("Pipeline started")
+      await fetchCandidates()
+    } catch (err: any) {
+      toast.error(err.message || "Failed to run pipeline")
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-heading font-semibold text-surface-text">Jobs & Candidates</h2>
+        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-48 w-full" />
+      </div>
+    )
   }
 
   return (
@@ -80,7 +124,7 @@ export function JobsAndCandidates() {
             onChange={(e) => setNewJobTitle(e.target.value)}
             className="flex-1 px-3 py-2 border border-surface-border rounded-md"
           />
-          <button type="submit" className="px-4 py-2 bg-brand-primary text-white rounded-md">Create Job</button>
+          <button type="submit" disabled={submitting} className="px-4 py-2 bg-brand-primary text-white rounded-md disabled:opacity-50">Create Job</button>
         </form>
       )}
 
@@ -107,11 +151,9 @@ export function JobsAndCandidates() {
             onChange={(e) => setFile(e.target.files?.[0] || null)}
             className="block w-full text-sm"
           />
-          <button type="submit" className="px-4 py-2 bg-brand-primary text-white rounded-md">Upload</button>
+          <button type="submit" disabled={submitting || !file} className="px-4 py-2 bg-brand-primary text-white rounded-md disabled:opacity-50">Upload</button>
         </form>
       )}
-
-      {message && <p className="text-sm text-semantic-success">{message}</p>}
 
       <div className="bg-white rounded-lg border border-surface-border overflow-hidden">
         <table className="w-full text-sm text-left">
@@ -145,6 +187,9 @@ export function JobsAndCandidates() {
             ))}
           </tbody>
         </table>
+        {candidates.length === 0 && (
+          <div className="p-6 text-center text-surface-muted text-sm">No candidates found.</div>
+        )}
       </div>
     </div>
   )

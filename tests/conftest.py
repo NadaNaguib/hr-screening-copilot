@@ -7,10 +7,9 @@ from datetime import datetime
 from uuid import uuid4
 
 import pytest_asyncio
-import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from copilot.infrastructure.db.base import Base
 from copilot.infrastructure.db.models import (
@@ -26,10 +25,18 @@ TEST_DATABASE_URL = os.environ.get(
     "postgresql+asyncpg://copilot:copilot@localhost:5432/hr_screening_test",
 )
 
+# Ensure the application and its global session factory bind to the test database.
+os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+
 
 @pytest_asyncio.fixture(scope="session")
 async def engine():
-    engine = create_async_engine(TEST_DATABASE_URL, future=True, echo=False)
+    engine = create_async_engine(
+        TEST_DATABASE_URL,
+        future=True,
+        echo=False,
+        poolclass=NullPool,
+    )
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.drop_all)
@@ -42,7 +49,11 @@ async def engine():
 
 @pytest_asyncio.fixture
 async def session(engine) -> AsyncGenerator[AsyncSession, None]:
-    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    session_factory = async_sessionmaker(
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
     async with session_factory() as session:
         yield session
 
