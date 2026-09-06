@@ -160,7 +160,7 @@ export function ReviewQueue() {
                       <button disabled={acting[t.id]} onClick={() => act(t.id, "edit_and_approve")} className="px-2 py-1 text-xs bg-brand-accent text-white rounded-md disabled:opacity-50">Edit & Approve</button>
                     </>
                   )}
-                  {isAdmin() && [STATUS.PENDING_TRIAGE, STATUS.PENDING_MANAGER_REVIEW].includes(t.status) && (
+                  {isAdmin() && (t.status === STATUS.PENDING_TRIAGE || t.status === STATUS.PENDING_MANAGER_REVIEW) && (
                     <button disabled={acting[t.id]} onClick={() => override(t.id)} className="px-2 py-1 text-xs bg-semantic-warning text-white rounded-md disabled:opacity-50">Override</button>
                   )}
                 </td>
