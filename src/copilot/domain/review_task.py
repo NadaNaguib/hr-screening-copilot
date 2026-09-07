@@ -74,6 +74,7 @@ class ReviewTask:
     candidate_id: UUID | None = None
     job_id: UUID | None = None
     status: ReviewStatus = ReviewStatus.PENDING_TRIAGE
+    priority: str = "MEDIUM"
     triage_deadline_at: datetime | None = None
     decision_deadline_at: datetime | None = None
     triage_escalated_at: datetime | None = None
