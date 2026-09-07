@@ -15,6 +15,7 @@ class Job:
     description: str = ""
     location: str = ""
     priority: str = "MEDIUM"
+    skills: list[str] = field(default_factory=list)
     rubric_id: UUID | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     created_at: datetime = field(default_factory=datetime.utcnow)

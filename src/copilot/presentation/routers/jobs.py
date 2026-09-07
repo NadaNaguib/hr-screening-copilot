@@ -22,6 +22,7 @@ class JobCreate(BaseModel):
     description: str = ""
     location: str = ""
     priority: str = "MEDIUM"
+    skills: list[str] = Field(default_factory=list)
 
 
 class RubricCriterionCreate(BaseModel):
@@ -52,13 +53,17 @@ async def create_job(
         description=request.description,
         location=request.location,
         priority=request.priority,
+        skills=request.skills,
     )
     saved = await container.document_repository.create_job(job)
     return {
         "id": str(saved.id),
         "title": saved.title,
         "department": saved.department,
+        "description": saved.description,
+        "location": saved.location,
         "priority": saved.priority,
+        "skills": saved.skills,
     }
 
 
@@ -76,6 +81,7 @@ async def list_jobs(
             "description": j.description,
             "location": j.location,
             "priority": j.priority,
+            "skills": j.skills,
         }
         for j in jobs
     ]

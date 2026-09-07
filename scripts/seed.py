@@ -40,6 +40,7 @@ DEMO_JOBS = [
         "description": "Build scalable backend services using Python, FastAPI, PostgreSQL.",
         "location": "Remote",
         "priority": "HIGH",
+        "skills": ["Python", "FastAPI", "PostgreSQL", "System Design"],
     },
     {
         "title": "Frontend React Developer",
@@ -47,6 +48,7 @@ DEMO_JOBS = [
         "description": "Develop modern React/TypeScript user interfaces with Tailwind CSS.",
         "location": "Remote",
         "priority": "MEDIUM",
+        "skills": ["React", "TypeScript", "Tailwind CSS", "UX"],
     },
     {
         "title": "DevOps Engineer",
@@ -54,6 +56,7 @@ DEMO_JOBS = [
         "description": "Maintain CI/CD pipelines, Docker, Kubernetes, and cloud infrastructure.",
         "location": "Hybrid",
         "priority": "LOW",
+        "skills": ["Docker", "Kubernetes", "Terraform", "AWS"],
     },
 ]
 
@@ -113,6 +116,7 @@ async def _ensure_jobs(session: AsyncSession) -> list[JobORM]:
                 description=data["description"],
                 location=data["location"],
                 priority=data["priority"],
+                skills=data.get("skills", []),
             )
             session.add(job)
         jobs.append(job)
@@ -208,6 +212,7 @@ async def _ensure_candidates(session: AsyncSession, jobs: list[JobORM]) -> None:
                 raw_text=cv_text,
                 cv_sha256=f"demo-sha-{idx:04d}",
                 status="uploaded",
+                priority=job.priority,
             )
             session.add(candidate)
             await session.flush()
@@ -221,6 +226,7 @@ async def _ensure_candidates(session: AsyncSession, jobs: list[JobORM]) -> None:
                         job_id=job.id,
                         candidate_id=candidate.id,
                         status="PENDING_TRIAGE",
+                        priority=job.priority,
                     )
                 )
     await session.flush()

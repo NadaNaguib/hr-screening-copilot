@@ -110,7 +110,7 @@ async def upload_candidate(
     # Create review task if not exists
     task = await container.review_task_repository.get_task_by_candidate(candidate.id)
     if task is None:
-        task = ReviewTask(candidate_id=candidate.id, job_id=job_id)
+        task = ReviewTask(candidate_id=candidate.id, job_id=job_id, priority=priority)
         # Resolve SLA deadline
         job_rule = await container.review_task_repository.get_sla_rule_for_job(job_id)
         triage_hours, _ = resolve_sla_duration(Priority(priority), job_rule)

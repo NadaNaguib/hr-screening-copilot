@@ -19,6 +19,7 @@ interface Task {
   candidate_id: string
   job_id: string | null
   status: string
+  priority: string
   triage_reason: string | null
   manager_comment: string | null
   admin_override_reason: string | null
@@ -125,6 +126,7 @@ export function ReviewQueue() {
               <th className="px-4 py-3">Task ID</th>
               <th className="px-4 py-3">Candidate</th>
               <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Priority</th>
               <th className="px-4 py-3">Reason / Comment</th>
               <th className="px-4 py-3">Actions</th>
             </tr>
@@ -136,6 +138,9 @@ export function ReviewQueue() {
                 <td className="px-4 py-3">{t.candidate_id.slice(0, 8)}</td>
                 <td className="px-4 py-3">
                   <span className={statusBadgeClass(t.status)}>{t.status}</span>
+                </td>
+                <td className="px-4 py-3">
+                  <span className={priorityBadgeClass(t.priority)}>{t.priority}</span>
                 </td>
                 <td className="px-4 py-3">
                   <input
@@ -206,6 +211,20 @@ function statusBadgeClass(status: string): string {
     case STATUS.REJECTED_AT_TRIAGE:
     case STATUS.REJECTED_BY_MANAGER:
       return base + "bg-semantic-danger/10 text-semantic-danger"
+    default:
+      return base + "bg-surface-border text-surface-muted"
+  }
+}
+
+function priorityBadgeClass(priority: string): string {
+  const base = "px-2 py-1 rounded-full text-xs font-medium "
+  switch (priority.toUpperCase()) {
+    case "HIGH":
+      return base + "bg-semantic-danger/10 text-semantic-danger"
+    case "MEDIUM":
+      return base + "bg-semantic-warning/10 text-semantic-warning"
+    case "LOW":
+      return base + "bg-semantic-success/10 text-semantic-success"
     default:
       return base + "bg-surface-border text-surface-muted"
   }

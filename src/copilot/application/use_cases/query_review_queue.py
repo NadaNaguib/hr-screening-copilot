@@ -49,6 +49,7 @@ async def query_review_queue(
             "candidate_id": str(t.candidate_id),
             "job_id": str(t.job_id) if t.job_id else None,
             "status": t.status.value,
+            "priority": t.priority,
             "triage_deadline_at": t.triage_deadline_at.isoformat() if t.triage_deadline_at else None,
             "decision_deadline_at": t.decision_deadline_at.isoformat() if t.decision_deadline_at else None,
             "triage_reason": t.triage_reason,

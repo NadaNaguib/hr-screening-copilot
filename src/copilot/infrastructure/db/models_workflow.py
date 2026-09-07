@@ -33,6 +33,7 @@ class ReviewTaskORM(Base):
         default=ReviewStatus.PENDING_TRIAGE,
         nullable=False,
     )
+    priority: Mapped[str] = mapped_column(String(20), nullable=False, default="MEDIUM")
     triage_deadline_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     decision_deadline_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     triage_escalated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
