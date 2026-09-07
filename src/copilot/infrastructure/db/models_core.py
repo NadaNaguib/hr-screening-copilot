@@ -47,6 +47,7 @@ class JobORM(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     location: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     priority: Mapped[str] = mapped_column(String(50), nullable=False, default="MEDIUM")
+    skills: Mapped[list[str]] = mapped_column(JSON, default=list)
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
