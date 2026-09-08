@@ -14,22 +14,22 @@ Repository-rubric target: ≥30 commits, ≥6 active days, ≥8 merged Pull Requ
 - **Auth**: JWT + bcrypt, RBAC (admin/recruiter/manager).
 - **Tests**: unit (SLA, review-task) + integration (auth/RBAC) + vitest (Skeleton).
 - **Scripts**: seed, synthetic corpus generator, eval runner.
-- **Recent changes**: job description/skills on creation, review-task priority on Review Queue page, removed "All jobs" candidate filter.
+- **Recent changes**: job description/skills on creation, review-task priority on Review Queue page, removed "All jobs" candidate filter, editable queue priority, Gemini-based CV keyword extraction.
 
 ### Git History (rewritten + current)
-- **Branches**: `main`, `feat/project-scaffold`, `feat/domain-models`, `feat/backend-services`, `feat/auth-and-api`, `feat/frontend-spa`, `feat/job-form-and-queue-priority`.
-- **Commits on `main`**: 31 (26 backdated + 5 from Sep 7 PR).
-- **Active days**: 4 (Sep 4, 5, 6, 7).
-- **Merged PRs / merge commits**: 6.
+- **Branches**: `main`, `feat/project-scaffold`, `feat/domain-models`, `feat/backend-services`, `feat/auth-and-api`, `feat/frontend-spa`, `feat/job-form-and-queue-priority`, `feat/editable-priority-and-pipeline-test`.
+- **Commits on `main`**: 39 (26 backdated + 5 from Sep 7 PR + 8 from Sep 8 PR).
+- **Active days**: 5 (Sep 4, 5, 6, 7, 8).
+- **Merged PRs / merge commits**: 7.
 - **Remote**: `git@github.com:NadaNaguib/hr-screening-copilot.git`.
 
 ### Gap vs Rubric
 | Rubric | Required | Have | Gap |
 |--------|----------|------|-----|
-| Commits | ≥ 30 | 31 | ✅ |
-| Days of activity | ≥ 6 | 4 | +2 |
-| Pull Requests | ≥ 8 | 6 | +2 |
-| Feature branches | 8 | 7 | +1 |
+| Commits | ≥ 30 | 39 | ✅ |
+| Days of activity | ≥ 6 | 5 | +1 |
+| Pull Requests | ≥ 8 | 7 | +1 |
+| Feature branches | 8 | 8 | ✅ |
 
 ## Phase 1 — Task 1: Restructure + Backdate Existing Code (DONE)
 
@@ -54,10 +54,10 @@ Completed work was rewritten into **5 feature branches** with atomic conventiona
 | # | Branch | Day | Workload | Status | Contents |
 |---|--------|-----|----------|--------|----------|
 | 6 | `feat/job-form-and-queue-priority` | Sep 7 | medium | **MERGED** | job description + skills in create form; remove "All jobs" filter; move priority to Review Queue |
-| 7 | TBD feature | Sep 8 | medium | pending | observability/metrics, e2e tests, or AI service fix |
-| 8 | TBD feature | Sep 9 | medium | pending | docs/ADR, hardening, performance |
+| 7 | `feat/editable-priority-and-pipeline-test` | Sep 8 | heavy | **MERGED** | editable review-task priority dropdown; DB session commit/rollback fix; raw-SQL chunk ingestion for pgvector; Gemini-powered CV skill extraction with regex fallback; extracted skills in upload response |
+| 8 | TBD feature | Sep 9 | medium | pending | observability/metrics, docs/ADR, or hardening |
 
-**Final target:** 31+ commits, ≥6 days (Sep 4–9), **8 merged PRs**.
+**Final target:** 39+ commits, ≥6 days (Sep 4–9), **8 merged PRs**.
 
 ### Standing Rules
 1. Never commit directly to `main`; always use `feat/*` or `fix/*` branches.
@@ -72,3 +72,6 @@ Completed work was rewritten into **5 feature branches** with atomic conventiona
 - **Backdating**: Applies only to Task 1 (Sep 4–6). Task 2 uses real dates.
 - **Priority data model**: kept on `Candidate` internally (used by SLA resolution and upload path) but surfaced only on the Review Queue page; candidates table no longer shows it.
 - **Job skills**: stored as a `JSON` list on `Job` and seeded for demo jobs; used as the main keyword set for matching/rubrics in future scoring work.
+- **CV skill extraction**: calls the configured LLM (Gemini) and parses the returned JSON array. If the LLM key is invalid/unavailable, extraction falls back to an expanded regex keyword list so uploads still return useful skills.
+- **DB session bug**: FastAPI `Depends` with `async with` does not auto-commit on exit; fixed by explicitly committing after the endpoint yields and rolling back on exception.
+- **pgvector + asyncpg**: ORM bulk insert of chunks failed because the model declared `Vector(768)` but the migration created `double precision[]` and SQLAlchemy passed embeddings as strings. Fixed by manually altering the column to `vector(768)` and using raw SQL with explicit casts for inserts.
