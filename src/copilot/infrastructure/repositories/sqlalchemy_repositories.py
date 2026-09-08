@@ -419,17 +419,30 @@ class SqlAlchemyVectorStore(VectorStorePort):
         chunks: list[tuple[str, int | None, dict]],
         embeddings: list[list[float]] | None = None,
     ) -> None:
+        import json as _json
+        import uuid as _uuid
+
+        sql = text(
+            """
+            INSERT INTO chunks (id, document_id, job_id, text, embedding, page_number, metadata)
+            VALUES (:id, :document_id, :job_id, :text, (:embedding)::vector, :page_number, (:metadata)::json)
+            """
+        )
         for i, (chunk_text, page, meta) in enumerate(chunks):
-            orm = ChunkORM(
-                document_id=document_id,
-                job_id=job_id,
-                text=chunk_text,
-                embedding=embeddings[i] if embeddings else None,
-                page_number=page,
-                metadata_=meta,
+            embedding = embeddings[i] if embeddings else None
+            embedding_str = f"[{','.join(str(v) for v in embedding)}]" if embedding else None
+            await self._session.execute(
+                sql,
+                {
+                    "id": str(_uuid.uuid4()),
+                    "document_id": str(document_id),
+                    "job_id": str(job_id) if job_id else None,
+                    "text": chunk_text[:4000],
+                    "embedding": embedding_str,
+                    "page_number": page or 0,
+                    "metadata": _json.dumps(meta),
+                },
             )
-            self._session.add(orm)
-        await self._session.flush()
 
     async def search(
         self,

@@ -1,7 +1,9 @@
 """Upload a candidate CV, deduplicate by SHA-256, and create a review task."""
 from __future__ import annotations
 
+import json
 import re
+from typing import Any
 from uuid import UUID
 
 from copilot.domain.candidate import Candidate, CandidateStatus
@@ -19,15 +21,52 @@ def _extract_years(text: str) -> float:
     return 0.0
 
 
-def _extract_skills(text: str) -> list[str]:
+def _extract_skills_fallback(text: str) -> list[str]:
+    """Regex fallback for skill extraction when LLM is unavailable."""
     common = [
         "python", "javascript", "typescript", "java", "c++", "c#", "go", "rust",
         "react", "node.js", "sql", "postgresql", "docker", "kubernetes", "aws",
         "azure", "gcp", "machine learning", "data analysis", "project management",
-        "agile", "scrum", "leadership", "communication", "teamwork",
+        "agile", "scrum", "leadership", "communication", "teamwork", "fastapi",
+        "flask", "django", "html", "css", "tailwind", "bootstrap", "git", "linux",
+        "nginx", "redis", "mongodb", "mysql", "sqlite", "opencv", "tensorflow",
+        "pytorch", "keras", "pandas", "numpy", "matplotlib", "seaborn", "excel",
+        "rest api", "graphql", "microservices", "ci/cd", "jenkins", "github actions",
     ]
     lower = text.lower()
-    return [skill for skill in common if skill in lower]
+    found = [skill for skill in common if skill in lower]
+    return list(dict.fromkeys(found))
+
+
+async def _extract_skills_with_llm(text: str, llm: Any, correlation_id: str = "") -> list[str]:
+    """Use Gemini to extract professional skills/keywords from a CV; fallback to regex."""
+    if not llm:
+        return _extract_skills_fallback(text)
+    prompt = (
+        "Extract the professional skills and technologies mentioned in the following CV. "
+        "Return ONLY a JSON array of strings, e.g. [\"Python\", \"React\", \"Docker\"]. "
+        "Do not include explanations, only the JSON array.\n\nCV TEXT:\n"
+        + text[:8000]
+    )
+    try:
+        response = await llm.generate(
+            prompt=prompt,
+            system_instruction=None,
+            temperature=0.0,
+            max_tokens=512,
+            correlation_id=correlation_id,
+        )
+        raw = response.text.strip()
+        # Extract JSON array if wrapped in markdown fences
+        if "```" in raw:
+            raw = raw.split("```")[1].strip("json").strip()
+        parsed = json.loads(raw)
+        if isinstance(parsed, list) and parsed:
+            return [str(item).strip() for item in parsed if str(item).strip()]
+    except Exception as exc:
+        # Log and fall back to deterministic extraction so the pipeline still works
+        print(f"[upload_candidate] LLM skill extraction failed: {exc}")
+    return _extract_skills_fallback(text)
 
 
 def _chunk_text(text: str, chunk_size: int = 512, overlap: int = 50) -> list[tuple[str, int]]:
@@ -63,7 +102,7 @@ async def upload_candidate(
         existing.email = email or existing.email
         existing.raw_text = raw_text or existing.raw_text
         existing.years_of_experience = _extract_years(raw_text) or existing.years_of_experience
-        existing.skills = _extract_skills(raw_text) or existing.skills
+        existing.skills = await _extract_skills_with_llm(raw_text, container.llm, correlation_id) or existing.skills
         existing.priority = priority or existing.priority
         await container.candidate_repository.update_candidate(existing)
         candidate = existing
@@ -76,7 +115,7 @@ async def upload_candidate(
             raw_text=raw_text,
             cv_sha256=sha256,
             years_of_experience=_extract_years(raw_text),
-            skills=_extract_skills(raw_text),
+            skills=await _extract_skills_with_llm(raw_text, container.llm, correlation_id),
             priority=priority,
             status=CandidateStatus.UPLOADED,
         )
@@ -113,7 +152,7 @@ async def upload_candidate(
         task = ReviewTask(candidate_id=candidate.id, job_id=job_id, priority=priority)
         # Resolve SLA deadline
         job_rule = await container.review_task_repository.get_sla_rule_for_job(job_id)
-        triage_hours, _ = resolve_sla_duration(Priority(priority), job_rule)
+        triage_hours, _ = resolve_sla_duration(Priority(priority.lower()), job_rule)
         from datetime import datetime, timedelta
 
         task.triage_deadline_at = datetime.utcnow() + timedelta(hours=triage_hours)
@@ -133,4 +172,6 @@ async def upload_candidate(
         "review_task_id": str(task.id),
         "is_new": is_new,
         "status": candidate.status.value,
+        "extracted_skills": candidate.skills,
+        "years_of_experience": candidate.years_of_experience,
     }
