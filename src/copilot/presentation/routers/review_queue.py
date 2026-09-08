@@ -10,6 +10,7 @@ from copilot.application.use_cases.admin_override import admin_override
 from copilot.application.use_cases.decide_candidate import decide_candidate
 from copilot.application.use_cases.query_review_queue import query_review_queue
 from copilot.application.use_cases.triage_candidate import triage_candidate
+from copilot.application.use_cases.update_task_priority import update_task_priority
 from copilot.infrastructure.di import Container
 from copilot.infrastructure.observability.correlation import get_correlation_id
 from copilot.presentation.dependencies import get_container, get_current_user, require_roles
@@ -32,6 +33,11 @@ class DecideRequest(BaseModel):
 class AdminOverrideRequest(BaseModel):
     task_id: UUID
     reason: str
+
+
+class UpdatePriorityRequest(BaseModel):
+    task_id: UUID
+    priority: str  # HIGH | MEDIUM | LOW
 
 
 @router.get("/review-queue")
@@ -97,5 +103,21 @@ async def post_admin_override(
         role=user["role"],
         task_id=request.task_id,
         reason=request.reason,
+        correlation_id=get_correlation_id(),
+    )
+
+
+@router.post("/review-queue/update-priority")
+async def post_update_priority(
+    request: UpdatePriorityRequest,
+    container: Container = Depends(get_container),
+    user: dict = Depends(require_roles("admin", "hr_recruiter")),
+) -> dict:
+    return await update_task_priority(
+        container=container,
+        actor_id=user["id"],
+        role=user["role"],
+        task_id=request.task_id,
+        priority=request.priority,
         correlation_id=get_correlation_id(),
     )
