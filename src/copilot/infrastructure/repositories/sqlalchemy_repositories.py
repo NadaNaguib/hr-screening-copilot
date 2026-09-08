@@ -227,7 +227,7 @@ def _sla_rule_to_domain(orm: SLARuleORM) -> SLARule:
     return SLARule(
         id=orm.id,
         job_id=orm.job_id,
-        priority=Priority(orm.priority),
+        priority=Priority(orm.priority.lower()),
         triage_hours=orm.triage_hours,
         decision_hours=orm.decision_hours,
         active=orm.active,
@@ -293,7 +293,10 @@ class SqlAlchemyDocumentRepository(DocumentRepositoryPort):
 
     async def get_sla_rule_for_job(self, job_id: UUID | None) -> SLARule | None:
         result = await self._session.execute(
-            select(SLARuleORM).where(SLARuleORM.job_id == job_id, SLARuleORM.active)
+            select(SLARuleORM)
+            .where(SLARuleORM.job_id == job_id, SLARuleORM.active)
+            .order_by(SLARuleORM.created_at.desc())
+            .limit(1)
         )
         orm = result.scalar_one_or_none()
         return _sla_rule_to_domain(orm) if orm else None
@@ -402,7 +405,10 @@ class SqlAlchemyReviewTaskRepository(ReviewTaskRepositoryPort):
 
     async def get_sla_rule_for_job(self, job_id: UUID | None) -> SLARule | None:
         result = await self._session.execute(
-            select(SLARuleORM).where(SLARuleORM.job_id == job_id, SLARuleORM.active)
+            select(SLARuleORM)
+            .where(SLARuleORM.job_id == job_id, SLARuleORM.active)
+            .order_by(SLARuleORM.created_at.desc())
+            .limit(1)
         )
         orm = result.scalar_one_or_none()
         return _sla_rule_to_domain(orm) if orm else None

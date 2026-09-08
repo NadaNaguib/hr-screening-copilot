@@ -13,15 +13,34 @@ class GeminiSdkAdapter(LLMPort):
     """Primary LLM adapter using google-generativeai."""
 
     def __init__(self, model: str | None = None, api_key: str | None = None) -> None:
-        self.model = model or get_settings().gemini_model
-        self.api_key = api_key or get_settings().gemini_api_key or os.environ.get("GEMINI_API_KEY", "")
+        self.model = model
+        self.api_key = api_key
         self._client: Any | None = None
+
+    def _ensure_config(self) -> None:
+        from copilot.infrastructure.config.ai_config import AIConfigManager
+
+        manager = AIConfigManager()
+        if self.model is None:
+            self.model = manager.config.gemini_model
+        if self.api_key is None:
+            self.api_key = manager.config.gemini_api_key or os.environ.get("GEMINI_API_KEY", "")
 
     def name(self) -> str:
         return "gemini-sdk"
 
     def _client_ready(self) -> bool:
+        self._ensure_config()
         if not self.api_key:
+            return False
+        try:
+            import google.generativeai as genai
+
+            if self._client is None:
+                genai.configure(api_key=self.api_key)
+                self._client = genai.GenerativeModel(self.model)
+            return True
+        except Exception:
             return False
         try:
             import google.generativeai as genai

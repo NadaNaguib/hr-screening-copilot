@@ -54,16 +54,23 @@ async def run_screening_pipeline(
     candidate.mark_screened(overall)
     await container.candidate_repository.update_candidate(candidate)
 
-    # Orchestrator event stream (consume for side effects)
-    orchestrator = LangGraphOrchestrator(container.llm)
-    events = []
-    async for event in orchestrator.run_screening(
-        candidate_id=candidate.id,
-        job_id=candidate.job_id,
-        rubric_id=rubric.id if rubric else None,
-        correlation_id=correlation_id,
-    ):
-        events.append(event)
+    from copilot.infrastructure.config.ai_config import AIConfigManager
+
+    ai_config = AIConfigManager().config
+
+    # Orchestrator event stream (consume for side effects) only if agentic RAG is enabled
+    if ai_config.agentic_rag_enabled:
+        orchestrator = LangGraphOrchestrator(container.llm)
+        events = []
+        async for event in orchestrator.run_screening(
+            candidate_id=candidate.id,
+            job_id=candidate.job_id,
+            rubric_id=rubric.id if rubric else None,
+            correlation_id=correlation_id,
+        ):
+            events.append(event)
+    else:
+        events = [{"type": "done", "data": "agentic_rag_disabled"}]
 
     await container.audit.log(
         action="run_screening_pipeline",

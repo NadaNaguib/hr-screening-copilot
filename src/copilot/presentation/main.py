@@ -13,6 +13,7 @@ from copilot.infrastructure.db.session import async_session_factory, close_engin
 from copilot.infrastructure.observability.correlation import get_correlation_id, set_correlation_id
 from copilot.infrastructure.observability.logging import configure_logging
 from copilot.presentation.routers import (
+    admin_ai_config,
     admin_sla_rules,
     admin_users,
     auth,
@@ -93,6 +94,7 @@ def create_app() -> FastAPI:
     app.include_router(chat.router, prefix="/api/v1", tags=["chat"])
     app.include_router(admin_users.router, prefix="/api/v1", tags=["admin"])
     app.include_router(admin_sla_rules.router, prefix="/api/v1", tags=["admin"])
+    app.include_router(admin_ai_config.router, prefix="/api/v1", tags=["admin"])
     app.include_router(observability.router, prefix="/api/v1", tags=["observability"])
 
     return app

@@ -30,7 +30,7 @@ class Settings(BaseSettings):
 
     # LLM
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
-    gemini_model: str = Field(default="gemini-1.5-flash", alias="GEMINI_MODEL")
+    gemini_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL")
 
     # Observability / Testing
     simulate_agent_failure: bool = Field(default=False, alias="SIMULATE_AGENT_FAILURE")

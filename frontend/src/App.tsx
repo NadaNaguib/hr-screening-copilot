@@ -9,6 +9,7 @@ import { ReviewQueue } from "./pages/ReviewQueue"
 import { Observability } from "./pages/Observability"
 import { UserManagement } from "./pages/UserManagement"
 import { SettingsSlaRules } from "./pages/SettingsSlaRules"
+import { AISettings } from "./pages/AISettings"
 
 function RequireAdmin({ children }: { children: JSX.Element }) {
   const navigate = useNavigate()
@@ -47,6 +48,7 @@ function PrivateLayout() {
           <Route path="/observability" element={<RequireAdmin><Observability /></RequireAdmin>} />
           <Route path="/users" element={<RequireAdmin><UserManagement /></RequireAdmin>} />
           <Route path="/sla" element={<RequireAdmin><SettingsSlaRules /></RequireAdmin>} />
+          <Route path="/ai" element={<RequireAdmin><AISettings /></RequireAdmin>} />
         </Routes>
       </main>
     </div>

@@ -40,12 +40,16 @@ def _extract_skills_fallback(text: str) -> list[str]:
 
 async def _extract_skills_with_llm(text: str, llm: Any, correlation_id: str = "") -> list[str]:
     """Use Gemini to extract professional skills/keywords from a CV; fallback to regex."""
-    if not llm:
+    from copilot.infrastructure.config.ai_config import AIConfigManager
+
+    ai_config = AIConfigManager().config
+    if not llm or not ai_config.ai_enabled:
         return _extract_skills_fallback(text)
     prompt = (
-        "Extract the professional skills and technologies mentioned in the following CV. "
-        "Return ONLY a JSON array of strings, e.g. [\"Python\", \"React\", \"Docker\"]. "
-        "Do not include explanations, only the JSON array.\n\nCV TEXT:\n"
+        "You are a resume parser. Extract the professional skills, technologies, programming languages, "
+        "frameworks, databases, cloud platforms, tools, and methodologies mentioned in the CV below. "
+        "Return ONLY a single JSON array of strings. Example: [\"Python\", \"FastAPI\", \"React\", \"Docker\", \"AWS\"]. "
+        "No explanations, no code fences, no markdown, no additional text.\n\nCV TEXT:\n"
         + text[:8000]
     )
     try:
@@ -57,16 +61,41 @@ async def _extract_skills_with_llm(text: str, llm: Any, correlation_id: str = ""
             correlation_id=correlation_id,
         )
         raw = response.text.strip()
-        # Extract JSON array if wrapped in markdown fences
-        if "```" in raw:
-            raw = raw.split("```")[1].strip("json").strip()
-        parsed = json.loads(raw)
-        if isinstance(parsed, list) and parsed:
+        print(f"[upload_candidate] LLM raw response ({len(raw)} chars): {raw[:500]}")
+        # Try to extract the first JSON array from the response
+        parsed = _extract_json_array(raw)
+        if parsed:
+            print(f"[upload_candidate] LLM parsed skills: {parsed}")
             return [str(item).strip() for item in parsed if str(item).strip()]
+        print("[upload_candidate] LLM response did not contain a usable JSON array; using fallback")
     except Exception as exc:
         # Log and fall back to deterministic extraction so the pipeline still works
         print(f"[upload_candidate] LLM skill extraction failed: {exc}")
     return _extract_skills_fallback(text)
+
+
+def _extract_json_array(raw: str) -> list[str] | None:
+    """Extract a JSON array of strings from LLM output, tolerating markdown fences and extra text."""
+    # If wrapped in markdown fences, take the fenced content
+    if "```" in raw:
+        raw = raw.split("```")[1]
+        raw = raw.replace("json", "", 1).strip()
+
+    # Look for the first JSON array in the text
+    match = re.search(r"\[[\s\S]*?\]", raw)
+    if not match:
+        return None
+    raw_array = match.group(0)
+    try:
+        parsed = json.loads(raw_array)
+    except json.JSONDecodeError:
+        # Try normalizing trailing commas and single quotes to double quotes
+        normalized = re.sub(r",\s*\]", "]", raw_array)
+        normalized = re.sub(r"'([^']*)'", r'"\1"', normalized)
+        parsed = json.loads(normalized)
+    if isinstance(parsed, list) and parsed:
+        return [str(item).strip() for item in parsed if str(item).strip()]
+    return None
 
 
 def _chunk_text(text: str, chunk_size: int = 512, overlap: int = 50) -> list[tuple[str, int]]:

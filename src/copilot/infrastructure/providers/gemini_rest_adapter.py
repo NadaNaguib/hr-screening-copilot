@@ -15,13 +15,23 @@ class GeminiRestAdapter(LLMPort):
     """Fallback LLM adapter using direct Gemini REST API."""
 
     def __init__(self, model: str | None = None, api_key: str | None = None) -> None:
-        self.model = model or get_settings().gemini_model
-        self.api_key = api_key or get_settings().gemini_api_key or os.environ.get("GEMINI_API_KEY", "")
+        self.model = model
+        self.api_key = api_key
+
+    def _ensure_config(self) -> None:
+        from copilot.infrastructure.config.ai_config import AIConfigManager
+
+        manager = AIConfigManager()
+        if self.model is None:
+            self.model = manager.config.gemini_model
+        if self.api_key is None:
+            self.api_key = manager.config.gemini_api_key or os.environ.get("GEMINI_API_KEY", "")
 
     def name(self) -> str:
         return "gemini-rest"
 
     def _url(self) -> str:
+        self._ensure_config()
         return (
             f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
         )
@@ -49,6 +59,7 @@ class GeminiRestAdapter(LLMPort):
         max_tokens: int = 1024,
         correlation_id: str = "",
     ) -> LLMResponse:
+        self._ensure_config()
         if not self.api_key:
             return self._stub(prompt)
         async with httpx.AsyncClient(timeout=60.0) as client:

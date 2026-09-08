@@ -27,8 +27,15 @@ class GeminiEmbeddingAdapter(EmbeddingPort):
 
     def __init__(self, model: str = "models/text-embedding-004", api_key: str | None = None) -> None:
         self.model = model
-        self.api_key = api_key or get_settings().gemini_api_key or os.environ.get("GEMINI_API_KEY", "")
+        self.api_key = api_key
         self._client: Any | None = None
+
+    def _ensure_config(self) -> None:
+        from copilot.infrastructure.config.ai_config import AIConfigManager
+
+        manager = AIConfigManager()
+        if self.api_key is None:
+            self.api_key = manager.config.gemini_api_key or os.environ.get("GEMINI_API_KEY", "")
 
     def name(self) -> str:
         return "gemini-embedding"
@@ -37,6 +44,12 @@ class GeminiEmbeddingAdapter(EmbeddingPort):
         return DIMENSIONS
 
     async def embed(self, texts: list[str], correlation_id: str = "") -> list[list[float]]:
+        from copilot.infrastructure.config.ai_config import AIConfigManager
+
+        ai_config = AIConfigManager().config
+        if not ai_config.ai_enabled:
+            return [_deterministic_embedding(t) for t in texts]
+        self._ensure_config()
         if not self.api_key:
             return [_deterministic_embedding(t) for t in texts]
         try:

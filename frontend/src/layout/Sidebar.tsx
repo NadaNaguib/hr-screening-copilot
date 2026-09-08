@@ -9,6 +9,7 @@ export function Sidebar() {
     { to: "/chat", label: "Copilot Chat", roles: ["admin", "hr_recruiter", "hiring_manager"] },
     { to: "/queue", label: "Review Queue", roles: ["admin", "hr_recruiter", "hiring_manager"] },
     { to: "/observability", label: "Observability", roles: ["admin"] },
+    { to: "/ai", label: "AI Control Panel", roles: ["admin"] },
     { to: "/users", label: "User Management", roles: ["admin"] },
     { to: "/sla", label: "SLA Rules", roles: ["admin"] },
   ]
