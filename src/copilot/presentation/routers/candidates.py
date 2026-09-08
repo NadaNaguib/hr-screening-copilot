@@ -19,6 +19,8 @@ class CandidateUploadResponse(BaseModel):
     review_task_id: UUID
     is_new: bool
     status: str
+    extracted_skills: list[str] = []
+    years_of_experience: float = 0.0
 
 
 @router.post("/candidates")
