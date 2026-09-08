@@ -103,6 +103,26 @@ export function ReviewQueue() {
     }
   }
 
+  async function updatePriority(taskId: string, priority: string) {
+    const task = tasks.find((t) => t.id === taskId)
+    if (!task || task.priority === priority) return
+
+    const originalTasks = [...tasks]
+    setActing((a) => ({ ...a, [taskId]: true }))
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, priority } : t)))
+
+    try {
+      await apiClient.post("/review-queue/update-priority", { task_id: taskId, priority }, { silent: true })
+      toast.success("Priority updated")
+      await fetchTasks()
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update priority")
+      setTasks(originalTasks)
+    } finally {
+      setActing((a) => ({ ...a, [taskId]: false }))
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -140,7 +160,20 @@ export function ReviewQueue() {
                   <span className={statusBadgeClass(t.status)}>{t.status}</span>
                 </td>
                 <td className="px-4 py-3">
-                  <span className={priorityBadgeClass(t.priority)}>{t.priority}</span>
+                  {(isAdmin() || isRecruiter()) ? (
+                    <select
+                      value={t.priority}
+                      disabled={acting[t.id]}
+                      onChange={(e) => updatePriority(t.id, e.target.value)}
+                      className="px-2 py-1 border border-surface-border rounded-md text-xs bg-white"
+                    >
+                      <option value="HIGH">HIGH</option>
+                      <option value="MEDIUM">MEDIUM</option>
+                      <option value="LOW">LOW</option>
+                    </select>
+                  ) : (
+                    <span className={priorityBadgeClass(t.priority)}>{t.priority}</span>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <input
