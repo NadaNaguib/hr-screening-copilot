@@ -18,9 +18,9 @@ docker compose up --build -d
 ```
 
 Open http://localhost:3000 and log in as:
-- **Admin**: `admin@example.com` / `Admin1234!`
-- **HR Recruiter**: `recruiter@example.com` / `Recruiter1!`
-- **Hiring Manager**: `manager@example.com` / `Manager1!`
+- **Admin**: `admin@example.com` / `password123`
+- **HR Recruiter**: `recruiter@example.com` / `password123`
+- **Hiring Manager**: `manager@example.com` / `password123`
 
 ---
 

@@ -109,15 +109,15 @@ These accounts are created by `scripts/seed.py` on first startup:
 
 | Role | Email | Password | Can Do |
 |------|-------|----------|--------|
-| Admin | `admin@example.com` | `Admin1234!` | Everything, including user management, SLA rules, AI settings, break-glass override |
-| HR Recruiter | `recruiter@example.com` | `Recruiter1!` | Upload CVs, run pipeline, triage queue, set priority |
-| Hiring Manager | `manager@example.com` | `Manager1!` | Final approve/reject/edit decisions, export shortlist |
+| Admin | `admin@example.com` | `password123` | Everything, including user management, SLA rules, AI settings, break-glass override |
+| HR Recruiter | `recruiter@example.com` | `password123` | Upload CVs, run pipeline, triage queue, set priority |
+| Hiring Manager | `manager@example.com` | `password123` | Final approve/reject/edit decisions, export shortlist |
 
 ---
 
 ## 5-Minute Demo Path
 
-**Step 1** — Log in as **HR Recruiter** (`recruiter@example.com` / `Recruiter1!`)
+**Step 1** — Log in as **HR Recruiter** (`recruiter@example.com` / `password123`)
 
 **Step 2** — Create a job
 - Click **Jobs & Candidates** → **New Job**
@@ -126,7 +126,7 @@ These accounts are created by `scripts/seed.py` on first startup:
 - Description: "Backend role requiring 3+ years of Python"
 
 **Step 3** — Upload a CV
-- Click **Upload CV** next to the job
+- Click **Upload CV** next to the job (or click **"Mimic CV & Match"** for instant candidate generation)
 - Upload `Youssef_Eid_CV.pdf` (included in repo root)
 - Observe extracted skills in the response
 
@@ -148,12 +148,12 @@ These accounts are created by `scripts/seed.py` on first startup:
 - Set priority to HIGH, add a reason, click **Forward to Manager**
 
 **Step 8** — Decide as Hiring Manager
-- Log out, log in as `manager@example.com` / `Manager1!`
+- Log out, log in as `manager@example.com` / `password123`
 - Go to **Review Queue** → see the task with SLA countdown
 - Click **Approve** with a comment
 
 **Step 9** — Observe trace
-- Log in as `admin@example.com` / `Admin1234!`
+- Log in as `admin@example.com` / `password123`
 - Go to **Observability** → see token counts, cost, latency
 - Go to **Reviewer Stats** → see approval rates, escalation count
 

@@ -148,7 +148,10 @@ def run(token: str | None) -> dict:
 
 
 def _write_report(report: dict) -> None:
-    out_path = Path("docs/EVALUATION.md")
+    repo_root = Path(__file__).resolve().parent.parent
+    docs_dir = repo_root / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    out_path = docs_dir / "EVALUATION.md"
     regular = [r for r in report["results"] if not r["adversarial"]]
     adversarial = [r for r in report["results"] if r["adversarial"]]
 

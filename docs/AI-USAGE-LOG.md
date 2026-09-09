@@ -56,12 +56,26 @@
 **Fix**: Added explicit `await session.commit()` after the endpoint `yield` and `await session.rollback()` on exception.  
 **Lesson**: "Standard patterns" from documentation may omit critical details for async contexts. Always verify writes are actually committed.
 
-### Mistake 4: Docker PYTHONPATH
-**What AI generated**: `pip install -e .` in Dockerfile.  
-**What was wrong**: Editable installs in Docker don't work as expected when the source directory is outside the image's working directory. Import errors at runtime.  
-**How caught**: `docker compose up` showed `ModuleNotFoundError: No module named 'copilot'` in API logs.  
-**Fix**: Added `ENV PYTHONPATH=/app/src` in Dockerfile and switched to non-editable install with source copied before build.  
-**Lesson**: Test every Docker build from scratch. Editable installs are for local development only.
+### Mistake 5: SQLAlchemy MissingGreenlet on Lazy Relationships
+**What AI generated**: `rubric.criteria` accessed directly in `_rubric_to_domain()` without eager loading.  
+**What was wrong**: In asyncpg, accessing unloaded SQLAlchemy relationship attributes outside of an eager load context raises `sqlalchemy.exc.MissingGreenlet: greenlet_spawn has not been spawned`.  
+**How caught**: "Run Pipeline" endpoint returned 500 Internal Server Error when evaluating rubrics.  
+**Fix**: Added `options(selectinload(RubricORM.criteria))` to query and safely extracted criteria via `orm.__dict__.get("criteria", [])`.  
+**Lesson**: Async SQLAlchemy requires explicit eager loading strategy (`selectinload` or `joinedload`) for all relationships accessed in domain converters.
+
+### Mistake 6: LangGraph Dict vs. Object State Access
+**What AI generated**: `final_state.degraded` on the returned state from `graph.ainvoke()`.  
+**What was wrong**: LangGraph state returns a Python `dict`, not a Pydantic object instance. Accessing `.degraded` triggered `AttributeError: 'dict' object has no attribute 'degraded'`.  
+**How caught**: Pipeline execution crashed at the completion step when assembling the final response.  
+**Fix**: Changed access to `final_state.get("degraded", False)` and dict-safe retrieval.  
+**Lesson**: Verify the runtime return type of orchestrator graphs; LangGraph channels serialize into dictionaries at execution boundaries.
+
+### Mistake 7: Strict Case-Sensitive Enum Deserialization
+**What AI generated**: `Priority(value)` directly parsing priority query parameters and JSON payloads.  
+**What was wrong**: Frontend and database conventions vary (`HIGH` vs `high`). Passing uppercase `"HIGH"` raised `'HIGH' is not a valid Priority`.  
+**How caught**: Navigating to the SLA settings tab threw consecutive exceptions on valid uppercase priority strings.  
+**Fix**: Added case-insensitive `Priority.from_str()` class method normalizing input strings to lowercase before enum lookup.  
+**Lesson**: Always implement resilient, case-insensitive string parsing for domain enums exposed at boundary APIs.
 
 ---
 
@@ -70,3 +84,4 @@
 - ~20% required minor fixes (type annotations, imports)  
 - ~40% was usable as scaffolding with business logic added
 - 0% was committed verbatim without review
+
