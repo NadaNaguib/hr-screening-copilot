@@ -8,6 +8,7 @@ export function Sidebar() {
     { to: "/jobs", label: "Jobs & Candidates", roles: ["admin", "hr_recruiter", "hiring_manager"] },
     { to: "/chat", label: "Copilot Chat", roles: ["admin", "hr_recruiter", "hiring_manager"] },
     { to: "/queue", label: "Review Queue", roles: ["admin", "hr_recruiter", "hiring_manager"] },
+    { to: "/stats", label: "Reviewer Stats", roles: ["admin", "hr_recruiter", "hiring_manager"] },
     { to: "/observability", label: "Observability", roles: ["admin"] },
     { to: "/ai", label: "AI Control Panel", roles: ["admin"] },
     { to: "/users", label: "User Management", roles: ["admin"] },

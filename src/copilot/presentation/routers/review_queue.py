@@ -121,3 +121,28 @@ async def post_update_priority(
         priority=request.priority,
         correlation_id=get_correlation_id(),
     )
+
+
+@router.get("/shortlist/{shortlist_id}/export")
+async def export_shortlist_endpoint(
+    shortlist_id: UUID,
+    format: str = "csv",
+    container: Container = Depends(get_container),
+    user: dict = Depends(require_roles("hiring_manager", "admin")),
+):
+    """Export a finalized shortlist as CSV or PDF."""
+    from fastapi.responses import Response
+    from copilot.application.use_cases.export_shortlist import export_shortlist
+
+    data, content_type = await export_shortlist(
+        container=container,
+        role=user["role"],
+        shortlist_id=shortlist_id,
+        format=format,
+    )
+    filename = f"shortlist-{shortlist_id}.{format}"
+    return Response(
+        content=data,
+        media_type=content_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
