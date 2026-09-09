@@ -3,8 +3,9 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from copilot.application.ports.candidate_repository_port import CandidateRepositoryPort
 from copilot.application.ports.document_repository_port import DocumentRepositoryPort
@@ -21,12 +22,15 @@ from copilot.infrastructure.db.models import (
     AuditEventORM,
     CandidateORM,
     ChunkORM,
+    DocumentORM,
     EvidenceORM,
     JobORM,
     ReviewTaskORM,
     RubricCriterionORM,
     RubricORM,
     RubricScoreORM,
+    ShortlistEntryORM,
+    ShortlistORM,
     SLARuleORM,
 )
 
@@ -61,21 +65,23 @@ def _job_from_domain(domain: Job) -> JobORM:
 
 
 def _rubric_to_domain(orm: RubricORM) -> Rubric:
-    criteria = [
-        RubricCriterion(
-            id=c.id,
-            rubric_id=c.rubric_id,
-            name=c.name,
-            description=c.description,
-            weight=CriterionWeight(c.weight),
-            required=c.required,
-            keywords=c.keywords,
-            min_score=c.min_score,
-            max_score=c.max_score,
-            created_at=c.created_at,
-        )
-        for c in orm.criteria
-    ]
+    criteria = []
+    if "criteria" in orm.__dict__ and orm.criteria:
+        criteria = [
+            RubricCriterion(
+                id=c.id,
+                rubric_id=c.rubric_id,
+                name=c.name,
+                description=c.description,
+                weight=CriterionWeight.from_str(c.weight),
+                required=c.required,
+                keywords=c.keywords,
+                min_score=c.min_score,
+                max_score=c.max_score,
+                created_at=c.created_at,
+            )
+            for c in orm.criteria
+        ]
     return Rubric(
         id=orm.id,
         job_id=orm.job_id,
@@ -279,7 +285,7 @@ class SqlAlchemyDocumentRepository(DocumentRepositoryPort):
 
     async def get_rubric_for_job(self, job_id: UUID) -> Rubric | None:
         result = await self._session.execute(
-            select(RubricORM).where(RubricORM.job_id == job_id)
+            select(RubricORM).options(selectinload(RubricORM.criteria)).where(RubricORM.job_id == job_id)
         )
         orm = result.scalar_one_or_none()
         return _rubric_to_domain(orm) if orm else None
@@ -300,6 +306,51 @@ class SqlAlchemyDocumentRepository(DocumentRepositoryPort):
         )
         orm = result.scalar_one_or_none()
         return _sla_rule_to_domain(orm) if orm else None
+
+    async def delete_job(self, job_id: UUID) -> bool:
+        job = await self._session.get(JobORM, job_id)
+        if not job:
+            return False
+        await self._session.execute(
+            update(CandidateORM).where(CandidateORM.job_id == job_id).values(job_id=None)
+        )
+        await self._session.execute(
+            delete(ReviewTaskORM).where(ReviewTaskORM.job_id == job_id)
+        )
+        await self._session.execute(
+            delete(SLARuleORM).where(SLARuleORM.job_id == job_id)
+        )
+        await self._session.execute(
+            update(DocumentORM).where(DocumentORM.job_id == job_id).values(job_id=None)
+        )
+        await self._session.execute(
+            update(ChunkORM).where(ChunkORM.job_id == job_id).values(job_id=None)
+        )
+        shortlist_res = await self._session.execute(
+            select(ShortlistORM.id).where(ShortlistORM.job_id == job_id)
+        )
+        shortlist_ids = list(shortlist_res.scalars().all())
+        if shortlist_ids:
+            await self._session.execute(
+                delete(ShortlistEntryORM).where(ShortlistEntryORM.shortlist_id.in_(shortlist_ids))
+            )
+            await self._session.execute(
+                delete(ShortlistORM).where(ShortlistORM.id.in_(shortlist_ids))
+            )
+        rubric_res = await self._session.execute(
+            select(RubricORM.id).where(RubricORM.job_id == job_id)
+        )
+        rubric_ids = list(rubric_res.scalars().all())
+        if rubric_ids:
+            await self._session.execute(
+                delete(RubricCriterionORM).where(RubricCriterionORM.rubric_id.in_(rubric_ids))
+            )
+            await self._session.execute(
+                delete(RubricORM).where(RubricORM.id.in_(rubric_ids))
+            )
+        await self._session.delete(job)
+        await self._session.flush()
+        return True
 
 
 class SqlAlchemyCandidateRepository(CandidateRepositoryPort):
@@ -353,6 +404,23 @@ class SqlAlchemyCandidateRepository(CandidateRepositoryPort):
             orm.candidate_id = candidate_id
             self._session.add(orm)
         await self._session.flush()
+
+    async def delete_candidate(self, candidate_id: UUID) -> bool:
+        cand = await self._session.get(CandidateORM, candidate_id)
+        if not cand:
+            return False
+        await self._session.execute(
+            delete(ReviewTaskORM).where(ReviewTaskORM.candidate_id == candidate_id)
+        )
+        await self._session.execute(
+            delete(EvidenceORM).where(EvidenceORM.candidate_id == candidate_id)
+        )
+        await self._session.execute(
+            delete(RubricScoreORM).where(RubricScoreORM.candidate_id == candidate_id)
+        )
+        await self._session.delete(cand)
+        await self._session.flush()
+        return True
 
 
 class SqlAlchemyReviewTaskRepository(ReviewTaskRepositoryPort):

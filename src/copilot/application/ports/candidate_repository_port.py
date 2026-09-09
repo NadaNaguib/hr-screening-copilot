@@ -39,3 +39,7 @@ class CandidateRepositoryPort(ABC):
     @abstractmethod
     async def add_scores(self, candidate_id: UUID, scores: list[RubricScore]) -> None:
         """Add rubric scores to a candidate."""
+
+    @abstractmethod
+    async def delete_candidate(self, candidate_id: UUID) -> bool:
+        """Delete candidate and their associated evidence, scores, and review tasks."""

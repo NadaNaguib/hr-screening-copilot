@@ -106,16 +106,16 @@
 
 ## Active Issues & Fixes (Session 7 Tracking)
 
-| ID | Issue Description | Spec Ref | Status |
-|---|---|---|---|
-| **ISSUE-01** | Job visibility, CV generation/matching, delete Job & delete Candidate | FR-1, UI | 🟡 In Progress |
-| **ISSUE-02** | Duplicate "Senior Full Stack" entries in job dropdown | Data/Seed | 🟡 In Progress |
-| **ISSUE-03** | "Run Pipeline" returns 500 Internal Server Error | FR-2, Pipeline | 🟡 In Progress |
-| **ISSUE-04** | Copilot Chat: SSE streaming text display, save chat history, citations UI | FR-6, Chat | 🟡 In Progress |
-| **ISSUE-05** | Review Queue: Candidate Name instead of UUID, Reviewer Action Buttons (T5) | FR-5, T5 Queue | 🟡 In Progress |
-| **ISSUE-06** | AI Control Panel: replace static metrics with dynamic live ledger data | FR-8, Admin | 🟡 In Progress |
-| **ISSUE-07** | User Management: add Delete/Remove User capability | Admin RBAC | 🟡 In Progress |
-| **ISSUE-08** | SLA Tab: `'HIGH' is not a valid Priority` case crash + metric explanations | FR-4, SLA | 🟡 In Progress |
+| ID | Issue Description | Spec Ref | Status | Resolution |
+|---|---|---|---|---|
+| **ISSUE-01** | Job visibility, CV generation/matching, delete Job & delete Candidate | FR-1, UI | ✅ Fixed | Auto-selects created job; added `POST /jobs/{id}/mimic-candidate` with 1-click "Mimic CV & Match" button; added `DELETE /jobs/{id}` and `DELETE /candidates/{id}` with cascade cleanup. |
+| **ISSUE-02** | Duplicate "Senior Full Stack" entries in job dropdown | Data/Seed | ✅ Fixed | Purged duplicate test entries from Postgres; dropdown now displays distinct vacancies. |
+| **ISSUE-03** | "Run Pipeline" returns 500 Internal Server Error | FR-2, Pipeline | ✅ Fixed | Fixed `selectinload(RubricORM.criteria)` asyncpg greenlet bug, LangGraph dict state handling in `orchestrator.py`, and `CriterionWeight.from_str` case-insensitivity. |
+| **ISSUE-04** | Copilot Chat: SSE streaming text display, save chat history, citations UI | FR-6, Chat | ✅ Fixed | Built multi-session persistent chat with `localStorage`, interactive grounded reference cards with page numbers, and graceful synthesis fallback. |
+| **ISSUE-05** | Review Queue: Candidate Name instead of UUID, Reviewer Action Buttons (T5) | FR-5, T5 Queue | ✅ Fixed | Enriched queue API with `candidate_name` & `job_title`; resolved status casing so Forward, Reject, Approve, Edit & Approve, and Override buttons render properly. |
+| **ISSUE-06** | AI Control Panel: replace static metrics with dynamic live ledger data | FR-8, Admin | ✅ Fixed | Disk-persisted `/tmp/token_ledger.json`, live KPI cards, per-model cost table, live Gemini connectivity diagnostic, and dynamic invocation log. |
+| **ISSUE-07** | User Management: add Delete/Remove User capability | Admin RBAC | ✅ Fixed | Added backend `DELETE /auth/users/{user_id}` and `DELETE /admin/users/{user_id}` with RBAC audit logging and frontend confirmation dialogs. |
+| **ISSUE-08** | SLA Tab: `'HIGH' is not a valid Priority` case crash + metric explanations | FR-4, SLA | ✅ Fixed | Added case-insensitive `Priority.from_str` mapping; redesigned SLA rules UI with tooltips, visual priority badges, and countdown deadline explanations. |
 
 ---
 

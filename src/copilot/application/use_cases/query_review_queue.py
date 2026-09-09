@@ -43,11 +43,22 @@ async def query_review_queue(
         limit=limit,
         offset=offset,
     )
+
+    candidate_map: dict[UUID, str] = {}
+    job_map: dict[UUID, str] = {}
+    if tasks:
+        all_candidates = await container.candidate_repository.list_candidates()
+        candidate_map = {c.id: c.full_name for c in all_candidates}
+        all_jobs = await container.document_repository.list_jobs()
+        job_map = {j.id: j.title for j in all_jobs}
+
     return [
         {
             "id": str(t.id),
             "candidate_id": str(t.candidate_id),
+            "candidate_name": candidate_map.get(t.candidate_id, "Applicant") if t.candidate_id else "Applicant",
             "job_id": str(t.job_id) if t.job_id else None,
+            "job_title": job_map.get(t.job_id, "General Pool") if t.job_id else "General Pool",
             "status": t.status.value,
             "priority": t.priority,
             "triage_deadline_at": t.triage_deadline_at.isoformat() if t.triage_deadline_at else None,

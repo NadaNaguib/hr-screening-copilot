@@ -14,6 +14,16 @@ class CriterionWeight(str, Enum):
     MEDIUM = "medium"
     LOW = "low"
 
+    @classmethod
+    def from_str(cls, value: str | CriterionWeight) -> CriterionWeight:
+        if isinstance(value, cls):
+            return value
+        v = str(value).lower().strip()
+        for member in cls:
+            if member.value == v:
+                return member
+        return cls.MEDIUM
+
 
 @dataclass
 class RubricCriterion:

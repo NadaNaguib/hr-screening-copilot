@@ -128,3 +128,41 @@ async def upload_job_document(
         job_id=job_id,
         correlation_id=get_correlation_id(),
     )
+
+
+@router.delete("/jobs/{job_id}")
+async def delete_job_endpoint(
+    job_id: UUID,
+    container: Container = Depends(get_container),
+    user: dict = Depends(require_roles("admin", "hr_recruiter")),
+) -> dict:
+    from copilot.domain.errors import NotFoundError
+
+    success = await container.document_repository.delete_job(job_id)
+    if not success:
+        raise NotFoundError(f"Job {job_id} not found")
+    await container.audit.log(
+        action="delete_job",
+        target_type="job",
+        target_id=str(job_id),
+        actor_id=user["id"],
+        actor_role=user["role"],
+        details={"deleted": True},
+        correlation_id=get_correlation_id(),
+    )
+    return {"message": f"Job {job_id} deleted successfully"}
+
+
+@router.post("/jobs/{job_id}/mimic-candidate")
+async def mimic_candidate_endpoint(
+    job_id: UUID,
+    container: Container = Depends(get_container),
+    user: dict = Depends(require_roles("admin", "hr_recruiter")),
+) -> dict:
+    from copilot.application.use_cases.mimic_candidate import mimic_candidate_for_job
+
+    return await mimic_candidate_for_job(
+        container=container,
+        job_id=job_id,
+        correlation_id=get_correlation_id(),
+    )

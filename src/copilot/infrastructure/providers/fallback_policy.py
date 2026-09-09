@@ -61,20 +61,24 @@ class FallbackLLMProvider(LLMPort):
                     from copilot.infrastructure.observability.token_cost import TokenCostRecord, get_ledger
 
                     ledger = get_ledger()
+                    meta = response.metadata or {}
                     ledger.record(
                         TokenCostRecord(
-                            provider=response.metadata.get("provider", adapter.name()),
+                            provider=meta.get("provider", adapter.name()),
                             model=response.model,
                             input_tokens=response.input_tokens,
                             output_tokens=response.output_tokens,
                             cost_usd=response.cost_usd,
                             correlation_id=correlation_id,
-                            metadata=response.metadata,
+                            metadata=meta,
                         )
                     )
                     return response
                 except Exception as exc:
                     last_error = exc
+                    err_str = str(exc).lower()
+                    if "429" in err_str or "resourceexhausted" in err_str or "quota" in err_str:
+                        break
                     if attempt < self.max_retries:
                         await asyncio.sleep(self.base_delay * (2**attempt))
         # Graceful degrade: return a stub response instead of raising.

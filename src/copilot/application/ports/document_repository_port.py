@@ -39,3 +39,7 @@ class DocumentRepositoryPort(ABC):
     @abstractmethod
     async def get_sla_rule_for_job(self, job_id: UUID | None) -> SLARule | None:
         """Fetch SLA rule for a job (or None if only global defaults exist)."""
+
+    @abstractmethod
+    async def delete_job(self, job_id: UUID) -> bool:
+        """Delete a job and associated review tasks, rules, and rubrics."""

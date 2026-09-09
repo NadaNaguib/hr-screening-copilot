@@ -42,24 +42,47 @@ async def ask_copilot(
         "Answer concisely and cite sources using [1], [2], etc."
     )
 
+    citations = [
+        {"quote": e.quote, "source": e.source_document, "page": e.page_number}
+        for e in evidence
+    ]
+
+    def _fallback_synthesis(q: str) -> str:
+        if evidence:
+            lines = [f"[{i+1}] {e.quote} (source: {e.source_document}, page {e.page_number})" for i, e in enumerate(evidence)]
+            return (
+                f"Based on the talent screening records in our database, here is the relevant evidence found for '{q}':\n\n"
+                + "\n\n".join(lines)
+            )
+        return f"No matching candidate records or screening evidence were found for '{q}' in the talent database."
+
     if ai_config.agentic_rag_enabled:
         orchestrator = LangGraphOrchestrator(container.llm)
+        chunk_received = False
         async for event in orchestrator.ask(prompt, job_id=job_id, correlation_id=correlation_id):
             if event["type"] == "chunk":
-                yield {
-                    "type": "answer_chunk",
-                    "data": event["data"],
-                    "citations": [
-                        {"quote": e.quote, "source": e.source_document, "page": e.page_number}
-                        for e in evidence
-                    ],
-                }
+                text_chunk = event.get("data", "")
+                if text_chunk and str(text_chunk).strip():
+                    chunk_received = True
+                    yield {
+                        "type": "answer_chunk",
+                        "data": text_chunk,
+                        "citations": citations,
+                    }
             elif event["type"] == "done":
-                yield {"type": "done", "data": event["data"]}
+                if not chunk_received:
+                    yield {
+                        "type": "answer_chunk",
+                        "data": _fallback_synthesis(question),
+                        "citations": citations,
+                    }
+                yield {"type": "done", "data": event.get("data", "done")}
     else:
         response = await container.llm.generate(prompt, correlation_id=correlation_id)
-        yield {"type": "answer_chunk", "data": response.text, "citations": [
-            {"quote": e.quote, "source": e.source_document, "page": e.page_number}
-            for e in evidence
-        ]}
-        yield {"type": "done", "data": response.text}
+        ans = response.text if response.text.strip() else _fallback_synthesis(question)
+        yield {
+            "type": "answer_chunk",
+            "data": ans,
+            "citations": citations,
+        }
+        yield {"type": "done", "data": ans}

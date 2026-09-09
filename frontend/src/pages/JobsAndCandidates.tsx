@@ -3,6 +3,18 @@ import toast from "react-hot-toast"
 import { apiClient } from "../lib/apiClient"
 import { isAdmin, isRecruiter } from "../lib/auth"
 import { Skeleton } from "../components/Skeleton"
+import {
+  Briefcase,
+  Trash2,
+  Sparkles,
+  UploadCloud,
+  Play,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  FileText,
+  UserCheck,
+} from "lucide-react"
 
 interface Job {
   id: string
@@ -29,11 +41,16 @@ export function JobsAndCandidates() {
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [selectedJob, setSelectedJob] = useState<string>("")
   const [newJobTitle, setNewJobTitle] = useState("")
+  const [newJobDept, setNewJobDept] = useState("Engineering")
   const [newJobDescription, setNewJobDescription] = useState("")
   const [newJobSkills, setNewJobSkills] = useState("")
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [mimicking, setMimicking] = useState(false)
+  const [deletingJob, setDeletingJob] = useState(false)
+  const [deletingCandidateId, setDeletingCandidateId] = useState<string | null>(null)
+  const [runningPipelineId, setRunningPipelineId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchJobs()
@@ -57,6 +74,8 @@ export function JobsAndCandidates() {
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to load jobs")
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -67,8 +86,6 @@ export function JobsAndCandidates() {
       setCandidates(res.data)
     } catch (err: any) {
       toast.error(err.message || "Failed to load candidates")
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -81,20 +98,76 @@ export function JobsAndCandidates() {
         .split(",")
         .map((s) => s.trim())
         .filter((s) => s.length > 0)
-      await apiClient.post("/jobs", {
-        title: newJobTitle,
-        description: newJobDescription,
+      const res = await apiClient.post("/jobs", {
+        title: newJobTitle.trim(),
+        department: newJobDept.trim(),
+        description: newJobDescription.trim(),
         skills,
       })
+      const createdId = res.data.id
+      toast.success(`Job "${newJobTitle}" created & selected!`)
       setNewJobTitle("")
       setNewJobDescription("")
       setNewJobSkills("")
-      toast.success("Job created")
       await fetchJobs()
+      setSelectedJob(createdId)
     } catch (err: any) {
       toast.error(err.message || "Failed to create job")
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function deleteJob() {
+    if (!selectedJob) return
+    const curJob = jobs.find((j) => j.id === selectedJob)
+    if (!confirm(`Are you sure you want to delete "${curJob?.title || 'this job'}"? Any unlinked candidates will remain in the pool.`)) {
+      return
+    }
+    setDeletingJob(true)
+    try {
+      await apiClient.delete(`/jobs/${selectedJob}`)
+      toast.success("Job deleted successfully")
+      const updatedJobs = jobs.filter((j) => j.id !== selectedJob)
+      setJobs(updatedJobs)
+      setSelectedJob(updatedJobs.length > 0 ? updatedJobs[0].id : "")
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete job")
+    } finally {
+      setDeletingJob(false)
+    }
+  }
+
+  async function mimicCandidate() {
+    if (!selectedJob) {
+      toast.error("Please select a job first")
+      return
+    }
+    setMimicking(true)
+    const curJob = jobs.find((j) => j.id === selectedJob)
+    const toastId = toast.loading(`Generating tailored CV for ${curJob?.title || "selected job"}...`)
+    try {
+      const res = await apiClient.post(`/jobs/${selectedJob}/mimic-candidate`, {})
+      toast.success(`Candidate ${res.data.full_name} synthesized & screened!`, { id: toastId })
+      await fetchCandidates()
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate candidate", { id: toastId })
+    } finally {
+      setMimicking(false)
+    }
+  }
+
+  async function deleteCandidate(candidateId: string, name: string) {
+    if (!confirm(`Delete candidate "${name}" and all associated review scores?`)) return
+    setDeletingCandidateId(candidateId)
+    try {
+      await apiClient.delete(`/candidates/${candidateId}`)
+      toast.success("Candidate deleted")
+      await fetchCandidates()
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete candidate")
+    } finally {
+      setDeletingCandidateId(null)
     }
   }
 
@@ -111,7 +184,7 @@ export function JobsAndCandidates() {
     try {
       await apiClient.post("/candidates", form, { headers: { "Content-Type": "multipart/form-data" } })
       setFile(null)
-      toast.success("Candidate uploaded")
+      toast.success("Candidate CV uploaded successfully")
       await fetchCandidates()
     } catch (err: any) {
       toast.error(err.message || "Failed to upload candidate")
@@ -121,14 +194,20 @@ export function JobsAndCandidates() {
   }
 
   async function runPipeline(candidateId: string) {
+    setRunningPipelineId(candidateId)
+    const toastId = toast.loading("Executing multi-agent screening pipeline...")
     try {
-      await apiClient.post("/pipeline/run", { candidate_id: candidateId })
-      toast.success("Pipeline started")
+      const res = await apiClient.post("/pipeline/run", { candidate_id: candidateId })
+      toast.success(`Pipeline completed! Score: ${(res.data.overall_score || 0).toFixed(1)}%`, { id: toastId })
       await fetchCandidates()
     } catch (err: any) {
-      toast.error(err.message || "Failed to run pipeline")
+      toast.error(err.message || "Failed to run pipeline", { id: toastId })
+    } finally {
+      setRunningPipelineId(null)
     }
   }
+
+  const activeJob = jobs.find((j) => j.id === selectedJob)
 
   if (loading && jobs.length === 0) {
     return (
@@ -142,106 +221,297 @@ export function JobsAndCandidates() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-heading font-semibold text-surface-text">Jobs & Candidates</h2>
-
-      {(isAdmin() || isRecruiter()) && (
-        <form onSubmit={createJob} className="bg-white p-4 rounded-lg border border-surface-border space-y-3">
-          <h3 className="font-medium">Create Job</h3>
-          <input
-            placeholder="Job title"
-            value={newJobTitle}
-            onChange={(e) => setNewJobTitle(e.target.value)}
-            className="w-full px-3 py-2 border border-surface-border rounded-md"
-            required
-          />
-          <textarea
-            placeholder="Job description"
-            value={newJobDescription}
-            onChange={(e) => setNewJobDescription(e.target.value)}
-            rows={3}
-            className="w-full px-3 py-2 border border-surface-border rounded-md"
-          />
-          <input
-            placeholder="Required skills (comma separated, e.g. Python, React, AWS)"
-            value={newJobSkills}
-            onChange={(e) => setNewJobSkills(e.target.value)}
-            className="w-full px-3 py-2 border border-surface-border rounded-md"
-          />
-          <button type="submit" disabled={submitting} className="px-4 py-2 bg-brand-primary text-white rounded-md disabled:opacity-50">
-            Create Job
-          </button>
-        </form>
-      )}
-
-      <div className="bg-white p-4 rounded-lg border border-surface-border">
-        <label className="block text-sm font-medium mb-2">Select a job to view candidates</label>
-        <select
-          value={selectedJob}
-          onChange={(e) => setSelectedJob(e.target.value)}
-          className="w-full px-3 py-2 border border-surface-border rounded-md"
-          required
-        >
-          <option value="" disabled>
-            Choose a job...
-          </option>
-          {jobs.map((j) => (
-            <option key={j.id} value={j.id}>
-              {j.title}
-            </option>
-          ))}
-        </select>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-heading font-bold text-surface-text tracking-tight">Jobs & Talent Pool</h2>
+          <p className="text-sm text-surface-muted">Manage screening roles, upload resumes, synthesize sample profiles, and execute agent pipelines.</p>
+        </div>
       </div>
 
-      {(isAdmin() || isRecruiter()) && (
-        <form onSubmit={uploadCandidate} className="bg-white p-4 rounded-lg border border-surface-border space-y-3">
-          <h3 className="font-medium">Upload CV</h3>
-          <input
-            type="file"
-            accept=".pdf,.docx,.txt"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-            className="block w-full text-sm"
-          />
-          <button type="submit" disabled={submitting || !file || !selectedJob} className="px-4 py-2 bg-brand-primary text-white rounded-md disabled:opacity-50">
-            Upload
-          </button>
-        </form>
-      )}
-
-      <div className="bg-white rounded-lg border border-surface-border overflow-hidden">
-        <table className="w-full text-sm text-left">
-          <thead className="bg-surface-page text-surface-muted uppercase">
-            <tr>
-              <th className="px-4 py-3">Name</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Score</th>
-              <th className="px-4 py-3">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {candidates.map((c) => (
-              <tr key={c.id} className="border-t border-surface-border">
-                <td className="px-4 py-3">{c.full_name}</td>
-                <td className="px-4 py-3">{c.status}</td>
-                <td className="px-4 py-3">{c.overall_score?.toFixed(1) ?? "-"}</td>
-                <td className="px-4 py-3">
-                  {(isAdmin() || isRecruiter()) && (
-                    <button
-                      onClick={() => runPipeline(c.id)}
-                      className="px-3 py-1 text-xs bg-brand-accent text-white rounded-md"
-                    >
-                      Run pipeline
-                    </button>
-                  )}
-                </td>
-              </tr>
+      {/* Role Selection Bar */}
+      <div className="bg-white p-4 rounded-xl border border-surface-border shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex-1">
+          <label className="block text-xs font-semibold uppercase text-surface-muted mb-1.5 flex items-center gap-1.5">
+            <Briefcase className="w-3.5 h-3.5 text-brand-primary" /> Active Job Position
+          </label>
+          <select
+            value={selectedJob}
+            onChange={(e) => setSelectedJob(e.target.value)}
+            className="w-full px-3 py-2 border border-surface-border rounded-lg text-sm bg-white font-medium focus:ring-2 focus:ring-brand-primary/20"
+          >
+            <option value="" disabled>Choose a job...</option>
+            {jobs.map((j) => (
+              <option key={j.id} value={j.id}>
+                {j.title} {j.department ? `(${j.department})` : ""}
+              </option>
             ))}
-          </tbody>
-        </table>
-        {candidates.length === 0 && (
-          <div className="p-6 text-center text-surface-muted text-sm">
-            {selectedJob ? "No candidates found for this job." : "Select a job to see candidates."}
+          </select>
+        </div>
+
+        {activeJob && (
+          <div className="flex items-center gap-2 pt-2 md:pt-5">
+            <button
+              onClick={mimicCandidate}
+              disabled={mimicking}
+              title="Generate a sample candidate CV matching this role and automatically run agentic screening"
+              className="px-3.5 py-2 text-sm bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg shadow-xs flex items-center gap-2 transition disabled:opacity-50"
+            >
+              <Sparkles className={`w-4 h-4 ${mimicking ? "animate-spin" : ""}`} />
+              {mimicking ? "Synthesizing CV…" : "Mimic CV & Match"}
+            </button>
+
+            {(isAdmin() || isRecruiter()) && (
+              <button
+                onClick={deleteJob}
+                disabled={deletingJob}
+                title="Delete this job vacancy"
+                className="px-3 py-2 text-sm bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-medium rounded-lg transition disabled:opacity-50 flex items-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Job
+              </button>
+            )}
           </div>
         )}
+      </div>
+
+      {/* Active Job Specs Summary Card */}
+      {activeJob && (
+        <div className="bg-gradient-to-r from-blue-50/70 to-indigo-50/70 p-4 rounded-xl border border-blue-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-surface-text text-base">{activeJob.title}</span>
+              {activeJob.department && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  {activeJob.department}
+                </span>
+              )}
+            </div>
+            {activeJob.description && (
+              <p className="text-xs text-surface-muted max-w-2xl line-clamp-2">{activeJob.description}</p>
+            )}
+            {activeJob.skills && activeJob.skills.length > 0 && (
+              <div className="flex flex-wrap gap-1 pt-1">
+                {activeJob.skills.map((skill, i) => (
+                  <span key={i} className="px-2 py-0.5 bg-white border border-blue-200 text-blue-900 rounded text-xs font-mono">
+                    {skill}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="text-xs text-surface-muted whitespace-nowrap">
+            <span className="font-semibold text-surface-text">{candidates.length}</span> candidates in pipeline
+          </div>
+        </div>
+      )}
+
+      {/* Creation and Upload Row */}
+      {(isAdmin() || isRecruiter()) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Create Job Form */}
+          <form onSubmit={createJob} className="bg-white p-5 rounded-xl border border-surface-border shadow-xs space-y-3">
+            <h3 className="font-semibold text-surface-text text-base flex items-center gap-2">
+              <Briefcase className="w-4 h-4 text-brand-primary" /> Create New Vacancy
+            </h3>
+            <div>
+              <label className="block text-xs text-surface-muted mb-1 font-medium">Job Title *</label>
+              <input
+                placeholder="e.g. Senior Backend Engineer"
+                value={newJobTitle}
+                onChange={(e) => setNewJobTitle(e.target.value)}
+                className="w-full px-3 py-1.5 border border-surface-border rounded-lg text-sm"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs text-surface-muted mb-1 font-medium">Department</label>
+                <input
+                  placeholder="e.g. Engineering"
+                  value={newJobDept}
+                  onChange={(e) => setNewJobDept(e.target.value)}
+                  className="w-full px-3 py-1.5 border border-surface-border rounded-lg text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-surface-muted mb-1 font-medium">Key Skills (comma-separated)</label>
+                <input
+                  placeholder="Python, Docker, SQL"
+                  value={newJobSkills}
+                  onChange={(e) => setNewJobSkills(e.target.value)}
+                  className="w-full px-3 py-1.5 border border-surface-border rounded-lg text-sm"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-surface-muted mb-1 font-medium">Role Description & Requirements</label>
+              <textarea
+                placeholder="Key responsibilities and qualifications required..."
+                value={newJobDescription}
+                onChange={(e) => setNewJobDescription(e.target.value)}
+                rows={2}
+                className="w-full px-3 py-1.5 border border-surface-border rounded-lg text-sm"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={submitting || !newJobTitle.trim()}
+              className="w-full py-2 bg-brand-primary text-white rounded-lg text-sm font-medium hover:bg-brand-primary/90 transition disabled:opacity-50"
+            >
+              {submitting ? "Creating Job…" : "Create Vacancy"}
+            </button>
+          </form>
+
+          {/* Upload CV Form */}
+          <form onSubmit={uploadCandidate} className="bg-white p-5 rounded-xl border border-surface-border shadow-xs space-y-3 flex flex-col justify-between">
+            <div className="space-y-3">
+              <h3 className="font-semibold text-surface-text text-base flex items-center gap-2">
+                <UploadCloud className="w-4 h-4 text-brand-primary" /> Upload Candidate Resume
+              </h3>
+              <p className="text-xs text-surface-muted">
+                Accepts PDF, DOCX, or TXT format. Candidate will be assigned to <strong>{activeJob ? activeJob.title : "the selected job"}</strong>.
+              </p>
+              <div className="border-2 border-dashed border-surface-border hover:border-brand-primary/50 rounded-xl p-4 text-center transition">
+                <input
+                  type="file"
+                  id="cv-file-input"
+                  accept=".pdf,.docx,.txt"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  className="hidden"
+                />
+                <label htmlFor="cv-file-input" className="cursor-pointer block">
+                  <FileText className="w-8 h-8 text-brand-primary/60 mx-auto mb-1" />
+                  <span className="text-sm font-medium text-surface-text block">
+                    {file ? file.name : "Click to browse or drop resume file"}
+                  </span>
+                  <span className="text-xs text-surface-muted">Max file size 10MB</span>
+                </label>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitting || !file || !selectedJob}
+              className="w-full py-2 bg-brand-primary text-white rounded-lg text-sm font-medium hover:bg-brand-primary/90 transition disabled:opacity-50"
+            >
+              {submitting ? "Parsing & Uploading…" : "Upload & Parse Resume"}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* Candidate Pipeline Table */}
+      <div className="bg-white rounded-xl border border-surface-border shadow-xs overflow-hidden">
+        <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-surface-text">Applicant Candidates Pool</h3>
+            <p className="text-xs text-surface-muted">Filtered for: <span className="font-semibold text-surface-text">{activeJob?.title || "No job selected"}</span></p>
+          </div>
+          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
+            {candidates.length} Applicants
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-surface-page text-surface-muted uppercase text-xs font-semibold">
+              <tr>
+                <th className="px-4 py-3">Applicant Name</th>
+                <th className="px-4 py-3">Experience</th>
+                <th className="px-4 py-3">Parsed Skills</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Score</th>
+                <th className="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-border">
+              {candidates.map((c) => {
+                const isRunning = runningPipelineId === c.id
+                const isDeleting = deletingCandidateId === c.id
+                return (
+                  <tr key={c.id} className="hover:bg-surface-page/50 transition">
+                    <td className="px-4 py-3.5">
+                      <div className="font-medium text-surface-text">{c.full_name || "Applicant"}</div>
+                      <div className="text-xs text-surface-muted font-mono">{c.email || c.id.slice(0, 8)}</div>
+                    </td>
+                    <td className="px-4 py-3.5 text-surface-muted text-xs">
+                      {c.years_of_experience ? `${c.years_of_experience.toFixed(1)} yrs` : "—"}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="flex flex-wrap gap-1 max-w-xs">
+                        {(c.skills || []).slice(0, 4).map((sk, i) => (
+                          <span key={i} className="px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-700 font-mono">
+                            {sk}
+                          </span>
+                        ))}
+                        {(c.skills || []).length > 4 && (
+                          <span className="text-xs text-surface-muted">+{c.skills.length - 4}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        c.status === "screened"
+                          ? "bg-green-100 text-green-800"
+                          : c.status === "processing"
+                          ? "bg-yellow-100 text-yellow-800 animate-pulse"
+                          : "bg-blue-100 text-blue-800"
+                      }`}>
+                        {c.status === "screened" && <CheckCircle2 className="w-3 h-3" />}
+                        {c.status === "processing" && <Clock className="w-3 h-3" />}
+                        {c.status === "uploaded" && <UserCheck className="w-3 h-3" />}
+                        {c.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      {c.overall_score !== null && c.overall_score !== undefined ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-sm text-surface-text">
+                            {c.overall_score.toFixed(1)}%
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-surface-muted italic">Unscreened</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3.5 text-right space-x-2 whitespace-nowrap">
+                      {(isAdmin() || isRecruiter()) && (
+                        <>
+                          <button
+                            onClick={() => runPipeline(c.id)}
+                            disabled={isRunning || isDeleting}
+                            title="Execute multi-agent screening on this candidate"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-brand-primary hover:bg-brand-primary/90 text-white rounded-md font-medium transition disabled:opacity-50"
+                          >
+                            <Play className={`w-3 h-3 ${isRunning ? "animate-spin" : ""}`} />
+                            {isRunning ? "Screening…" : "Run pipeline"}
+                          </button>
+                          <button
+                            onClick={() => deleteCandidate(c.id, c.full_name)}
+                            disabled={isDeleting || isRunning}
+                            title="Remove candidate from pool"
+                            className="inline-flex items-center p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition disabled:opacity-50"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+
+          {candidates.length === 0 && (
+            <div className="p-8 text-center space-y-2">
+              <AlertCircle className="w-8 h-8 text-surface-muted mx-auto" />
+              <p className="text-sm font-medium text-surface-text">No candidates found for this job</p>
+              <p className="text-xs text-surface-muted">Upload a candidate resume or click <strong>Mimic CV & Match</strong> above to generate a sample profile instantly.</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

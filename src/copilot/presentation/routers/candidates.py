@@ -66,3 +66,26 @@ async def list_candidates(
         }
         for c in candidates
     ]
+
+
+@router.delete("/candidates/{candidate_id}")
+async def delete_candidate_endpoint(
+    candidate_id: UUID,
+    container: Container = Depends(get_container),
+    user: dict = Depends(require_roles("admin", "hr_recruiter")),
+) -> dict:
+    from copilot.domain.errors import NotFoundError
+
+    success = await container.candidate_repository.delete_candidate(candidate_id)
+    if not success:
+        raise NotFoundError(f"Candidate {candidate_id} not found")
+    await container.audit.log(
+        action="delete_candidate",
+        target_type="candidate",
+        target_id=str(candidate_id),
+        actor_id=user["id"],
+        actor_role=user["role"],
+        details={"deleted": True},
+        correlation_id=get_correlation_id(),
+    )
+    return {"message": f"Candidate {candidate_id} deleted successfully"}
