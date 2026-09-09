@@ -89,3 +89,53 @@ async def delete_candidate_endpoint(
         correlation_id=get_correlation_id(),
     )
     return {"message": f"Candidate {candidate_id} deleted successfully"}
+
+
+@router.get("/candidates/{candidate_id}/cv")
+async def get_candidate_cv(
+    candidate_id: UUID,
+    container: Container = Depends(get_container),
+    user: dict = Depends(get_current_user),
+) -> dict:
+    from copilot.domain.errors import NotFoundError
+
+    cand = await container.candidate_repository.get_candidate(candidate_id)
+    if not cand:
+        raise NotFoundError(f"Candidate {candidate_id} not found")
+    return {
+        "candidate_id": str(cand.id),
+        "full_name": cand.full_name,
+        "email": cand.email,
+        "raw_text": cand.raw_text,
+        "skills": cand.skills,
+        "priority": cand.priority,
+        "years_of_experience": cand.years_of_experience,
+    }
+
+
+@router.get("/candidates/document/by-name")
+async def get_document_by_name(
+    filename: str,
+    container: Container = Depends(get_container),
+    user: dict = Depends(get_current_user),
+) -> dict:
+    from sqlalchemy import select
+    from copilot.infrastructure.db.models import DocumentORM
+
+    stmt = select(DocumentORM).where(DocumentORM.filename.ilike(f"%{filename}%")).limit(1)
+    result = await container.session.execute(stmt)
+    doc = result.scalar_one_or_none()
+    if doc:
+        return {
+            "document_id": str(doc.id),
+            "filename": doc.filename,
+            "raw_text": doc.raw_text,
+            "mime_type": doc.mime_type,
+            "metadata": doc.metadata_,
+        }
+    return {
+        "document_id": None,
+        "filename": filename,
+        "raw_text": "",
+        "metadata": {},
+    }

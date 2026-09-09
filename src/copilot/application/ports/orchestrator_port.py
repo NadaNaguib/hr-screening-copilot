@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
@@ -20,7 +20,7 @@ class OrchestratorPort(ABC):
     """Abstract agentic orchestrator."""
 
     @abstractmethod
-    async def run_screening(
+    def run_screening(
         self,
         candidate_id: UUID,
         job_id: UUID | None,
@@ -30,10 +30,12 @@ class OrchestratorPort(ABC):
         """Yield agent events and final result for a screening."""
 
     @abstractmethod
-    async def ask(
+    def ask(
         self,
         question: str,
         job_id: UUID | None = None,
         correlation_id: str = "",
+        **kwargs: Any,
     ) -> AsyncIterator[dict[str, Any]]:
         """Yield chat answer chunks and citations."""
+

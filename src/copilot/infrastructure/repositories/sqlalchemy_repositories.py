@@ -525,14 +525,16 @@ class SqlAlchemyVectorStore(VectorStorePort):
         job_id: UUID | None = None,
         top_k: int = 10,
     ) -> list[Evidence]:
-        # Vector similarity search using pgvector
+        # Vector similarity search using pgvector joined with documents table
         vector_str = f"[{','.join(str(v) for v in query_embedding)}]"
         sql = """
-            SELECT id, document_id, job_id, text, page_number, metadata,
-                   embedding <=> CAST(:embedding AS vector) AS distance
-            FROM chunks
-            WHERE (CAST(:job_id AS uuid) IS NULL OR job_id = CAST(:job_id AS uuid))
-            ORDER BY embedding <=> CAST(:embedding AS vector)
+            SELECT c.id, c.document_id, c.job_id, c.text, c.page_number, c.metadata,
+                   d.filename, d.raw_text, d.metadata AS doc_meta,
+                   c.embedding <=> CAST(:embedding AS vector) AS distance
+            FROM chunks c
+            LEFT JOIN documents d ON c.document_id = d.id
+            WHERE (CAST(:job_id AS uuid) IS NULL OR c.job_id = CAST(:job_id AS uuid))
+            ORDER BY c.embedding <=> CAST(:embedding AS vector)
             LIMIT :limit
         """
         result = await self._session.execute(
@@ -546,8 +548,13 @@ class SqlAlchemyVectorStore(VectorStorePort):
         evidence_list: list[Evidence] = []
         for row in result.mappings().all():
             meta = dict(row["metadata"] or {})
-            meta["page_number"] = row["page_number"]
-            meta["source_document"] = meta.get("filename", "")
+            meta["page_number"] = row["page_number"] if row["page_number"] is not None and row["page_number"] > 0 else 1
+            meta["source_document"] = row.get("filename") or meta.get("filename") or meta.get("source_document") or "Candidate_CV.pdf"
+            meta["full_text"] = row.get("raw_text") or row["text"]
+            meta["document_id"] = str(row["document_id"]) if row.get("document_id") else None
+            doc_m = row.get("doc_meta") or {}
+            if isinstance(doc_m, dict) and "candidate_id" in doc_m:
+                meta["candidate_id"] = doc_m["candidate_id"]
             evidence_list.append(
                 Evidence(
                     id=row["id"],

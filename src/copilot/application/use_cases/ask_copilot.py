@@ -1,4 +1,4 @@
-"""Ask the copilot a question using retrieval-augmented generation."""
+"""Ask the copilot a question using Agentic RAG with multi-scope retrieval."""
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
@@ -69,74 +69,243 @@ async def ask_copilot(
         yield {"type": "done", "data": "AI disabled"}
         return
 
-    # Retrieve evidence
-    evidence = await container.hybrid_search.search(question, job_id=job_id, top_k=5)
-    if not ai_config.plain_rag_enabled:
-        evidence = []
+    # ─── Build Agentic RAG tool functions ──────────────────────────────────────
 
-    context = "\n\n".join(
-        f"[{i+1}] {e.quote} (source: {e.source_document}, page: {e.page_number})"
-        for i, e in enumerate(evidence)
-    )
-    prompt = (
-        "You are a helpful HR screening assistant. Use only the retrieved context below.\n\n"
-        f"Context:\n{context}\n\n"
-        f"Question: {question}\n\n"
-        "Answer concisely and cite sources using [1], [2], etc."
-    )
+    async def _search_fn(
+        query: str,
+        job_id: UUID | None = None,
+        top_k: int = 10,
+        candidate_name: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Candidate-name-aware hybrid search tool."""
+        embedding = (await container.embedding.embed([query]))[0]
+        from sqlalchemy import text as sa_text
 
-    citations = [
-        {"quote": e.quote, "source": e.source_document, "page": e.page_number}
-        for e in evidence
-    ]
+        vector_str = f"[{','.join(str(v) for v in embedding)}]"
 
-    def _fallback_synthesis(q: str) -> str:
-        ql = q.lower()
-        evidence_snippets = [f"[{i+1}] {e.quote} (source: {e.source_document}, page {e.page_number})" for i, e in enumerate(evidence)]
-        context_block = "\n".join(evidence_snippets) if evidence_snippets else ""
-
-        # Specific domain topic synthesis when LLM is unavailable or rate limited
-        if "frontend" in ql and ("backend" in ql or "node" in ql):
-            ans = f"Candidate evaluation indicates candidates bridging both domains, combining modern frontend React expertise with strong backend development skills in Python and Node.js."
-        elif "python" in ql and ("fastapi" in ql or "experience" in ql):
-            ans = f"Alice and other senior backend candidates have extensive Python and FastAPI production experience, building asynchronous microservices with high throughput."
-        elif "frontend" in ql or "react" in ql:
-            ans = f"The primary Frontend specialist is proficient with React, TypeScript, and modern state management, with production experience developing complex client-side applications."
-        elif "devops" in ql and ("cloud" in ql or "aws" in ql or "kubernetes" in ql or "docker" in ql or "suited" in ql):
-            ans = f"Candidates evaluated for DevOps engineering demonstrate strong skills across Docker, Kubernetes, CI/CD pipelines, and multi-cloud infrastructure spanning AWS, GCP, and Azure."
-        elif "system design" in ql:
-            ans = f"Candidates with system design experience demonstrate architecture skills in designing scalable distributed services, caching layers, and high-availability database replication."
-        elif "shortlist" in ql:
-            ans = f"For the backend vacancy, qualified candidates with strong Python experience and high rubric alignment should be included in the candidate shortlist for hiring manager review."
-        elif "machine learning" in ql or "ai" in ql:
-            ans = f"Candidates have practical AI and machine learning (ML) experience, including LLM integration, Gemini AI pipelines, and automated fuzzy matching logic."
-        elif "postgresql" in ql or "database" in ql:
-            ans = f"Evaluated candidates demonstrate robust PostgreSQL, SQL query optimization, database indexing, and schema migration experience."
-        elif "years" in ql or "senior" in ql or "professional experience" in ql:
-            ans = f"Senior candidates in the pool possess 5+ years of relevant professional engineering experience in technical leadership and scalable systems."
-        elif "open-source" in ql or "github" in ql:
-            ans = f"Candidate records show active open-source contributions on GitHub to developer tooling and screening automation repositories."
-        elif "lead" in ql or "team" in ql or "managed" in ql:
-            ans = f"Candidate profiles highlight experience as a technical lead who has managed cross-functional engineering teams and sprint deliveries."
-        elif "startup" in ql:
-            ans = f"Candidates possess agile startup company experience, adapting quickly to fast-paced product cycles and iterative development."
-        elif "rubric" in ql or "score" in ql:
-            ans = f"Candidate evaluation against the job rubric yields the highest score for candidates meeting core backend criteria and system design requirements."
-        elif "certif" in ql:
-            ans = f"Candidate profiles highlight professional certification credentials, including Certified Solutions Architect and relevant cloud and DevOps accreditations."
+        # Build SQL with optional candidate name filter via document/candidate join
+        if candidate_name:
+            # Filter chunks to only the candidate with matching full_name
+            sql = """
+                SELECT c.id, c.document_id, c.job_id, c.text, c.page_number, c.metadata,
+                       d.filename, d.raw_text, d.metadata AS doc_meta,
+                       cand.full_name,
+                       c.embedding <=> CAST(:embedding AS vector) AS distance
+                FROM chunks c
+                LEFT JOIN documents d ON c.document_id = d.id
+                LEFT JOIN candidates cand ON (d.metadata->>'candidate_id')::uuid = cand.id
+                WHERE (cand.full_name ILIKE :name_pattern OR d.filename ILIKE :name_file)
+                ORDER BY c.embedding <=> CAST(:embedding AS vector)
+                LIMIT :limit
+            """
+            name_parts = candidate_name.split()
+            name_pattern = f"%{candidate_name}%"
+            # Also try first name only if full name doesn't match
+            name_file = f"%{name_parts[0]}%"
+            result = await container.session.execute(
+                sa_text(sql),
+                {"embedding": vector_str, "name_pattern": name_pattern, "name_file": name_file, "limit": top_k},
+            )
         else:
-            ans = f"Based on the talent screening records in our database, here is the relevant evidence found for '{q}'."
+            sql = """
+                SELECT c.id, c.document_id, c.job_id, c.text, c.page_number, c.metadata,
+                       d.filename, d.raw_text, d.metadata AS doc_meta,
+                       cand.full_name,
+                       c.embedding <=> CAST(:embedding AS vector) AS distance
+                FROM chunks c
+                LEFT JOIN documents d ON c.document_id = d.id
+                LEFT JOIN candidates cand ON (d.metadata->>'candidate_id')::uuid = cand.id
+                WHERE (CAST(:job_id AS uuid) IS NULL OR c.job_id = CAST(:job_id AS uuid))
+                ORDER BY c.embedding <=> CAST(:embedding AS vector)
+                LIMIT :limit
+            """
+            result = await container.session.execute(
+                sa_text(sql),
+                {"embedding": vector_str, "job_id": str(job_id) if job_id else None, "limit": top_k},
+            )
 
-        if context_block:
-            return f"{ans}\n\nEvidence:\n{context_block}"
-        return ans
+        rows = []
+        for row in result.mappings().all():
+            meta = dict(row["metadata"] or {})
+            doc_meta = row.get("doc_meta") or {}
+            candidate_id_val = ""
+            if isinstance(doc_meta, dict):
+                candidate_id_val = str(doc_meta.get("candidate_id") or "")
+            rows.append({
+                "id": str(row["id"]),
+                "chunk_id": str(row["id"]),
+                "quote": row["text"] or "",
+                "source": row.get("filename") or meta.get("source_document") or "Resume.pdf",
+                "page": int(row["page_number"] or 1),
+                "candidate_id": candidate_id_val,
+                "full_context": row.get("raw_text") or row["text"] or "",
+                "candidate_name": row.get("full_name") or "",
+                "confidence": max(0.0, 1.0 - float(row["distance"])),
+            })
+        return rows
+
+    async def _candidate_fn(name: str | None) -> list[dict[str, Any]]:
+        """Get structured candidate profile by name."""
+        if not name:
+            return []
+        from sqlalchemy import text as sa_text
+
+        sql = """
+            SELECT c.id, c.full_name, c.status, c.overall_score, c.job_id,
+                   j.title as job_title
+            FROM candidates c
+            LEFT JOIN jobs j ON c.job_id = j.id
+            WHERE c.full_name ILIKE :pattern
+            LIMIT 5
+        """
+        result = await container.session.execute(
+            sa_text(sql), {"pattern": f"%{name}%"}
+        )
+        rows = []
+        for row in result.mappings().all():
+            rows.append({
+                "id": str(row["id"]),
+                "chunk_id": str(row["id"]),
+                "quote": (
+                    f"Candidate: {row['full_name']} | Status: {row['status']} | "
+                    f"Score: {row['overall_score'] or 'N/A'} | Job: {row['job_title'] or 'Unassigned'}"
+                ),
+                "source": "Candidate Profile (Database)",
+                "page": 1,
+                "candidate_id": str(row["id"]),
+                "full_context": (
+                    f"Full Name: {row['full_name']}\nStatus: {row['status']}\n"
+                    f"Overall Score: {row['overall_score'] or 'Not scored'}\n"
+                    f"Applied Job: {row['job_title'] or 'No job assigned'}"
+                ),
+                "scope": "candidate_profile",
+            })
+        return rows
+
+    async def _job_fn(query: str, job_id: UUID | None = None) -> list[dict[str, Any]]:
+        """Search job descriptions and requirements."""
+        from sqlalchemy import text as sa_text
+
+        if job_id:
+            sql = """
+                SELECT j.id, j.title, j.description, j.department, j.skills, j.location,
+                       j.priority
+                FROM jobs j
+                WHERE j.id = CAST(:job_id AS uuid)
+                LIMIT 1
+            """
+            result = await container.session.execute(sa_text(sql), {"job_id": str(job_id)})
+        else:
+            sql = """
+                SELECT j.id, j.title, j.description, j.department, j.skills, j.location,
+                       j.priority
+                FROM jobs j
+                ORDER BY j.created_at DESC
+                LIMIT 5
+            """
+            result = await container.session.execute(sa_text(sql))
+
+        rows = []
+        for row in result.mappings().all():
+            skills = row["skills"] or []
+            if isinstance(skills, list):
+                skills_str = ", ".join(skills)
+            else:
+                skills_str = str(skills)
+            rows.append({
+                "id": str(row["id"]),
+                "chunk_id": str(row["id"]),
+                "quote": f"Job: {row['title']} ({row['department']}) — Requires: {skills_str}",
+                "source": f"Job Description: {row['title']}",
+                "page": 1,
+                "candidate_id": "",
+                "full_context": (
+                    f"Title: {row['title']}\nDepartment: {row['department']}\n"
+                    f"Location: {row['location']}\nPriority: {row['priority']}\n"
+                    f"Required Skills: {skills_str}\n"
+                    f"Description: {(row['description'] or '')[:500]}"
+                ),
+                "scope": "job_requirements",
+            })
+        return rows
+
+    async def _rubric_fn(job_id: UUID | None = None) -> list[dict[str, Any]]:
+        """Get rubric evaluation criteria."""
+        from sqlalchemy import text as sa_text
+
+        if job_id:
+            sql = """
+                SELECT rc.id, rc.name, rc.description, rc.weight, rc.required,
+                       rc.keywords, rc.min_score, rc.max_score,
+                       r.name as rubric_name, j.title as job_title
+                FROM rubric_criteria rc
+                JOIN rubrics r ON rc.rubric_id = r.id
+                JOIN jobs j ON r.job_id = j.id
+                WHERE j.id = CAST(:job_id AS uuid)
+                LIMIT 10
+            """
+            result = await container.session.execute(sa_text(sql), {"job_id": str(job_id)})
+        else:
+            sql = """
+                SELECT rc.id, rc.name, rc.description, rc.weight, rc.required,
+                       rc.keywords, rc.min_score, rc.max_score,
+                       r.name as rubric_name, j.title as job_title
+                FROM rubric_criteria rc
+                JOIN rubrics r ON rc.rubric_id = r.id
+                JOIN jobs j ON r.job_id = j.id
+                ORDER BY r.created_at DESC
+                LIMIT 10
+            """
+            result = await container.session.execute(sa_text(sql))
+
+        rows = []
+        for row in result.mappings().all():
+            keywords = row["keywords"] or []
+            if isinstance(keywords, list):
+                kw_str = ", ".join(keywords)
+            else:
+                kw_str = str(keywords)
+            rows.append({
+                "id": str(row["id"]),
+                "chunk_id": str(row["id"]),
+                "quote": (
+                    f"Criterion: {row['name']} (Weight: {row['weight']}, "
+                    f"Required: {row['required']}) — Keywords: {kw_str}"
+                ),
+                "source": f"Rubric: {row['rubric_name']} for {row['job_title']}",
+                "page": 1,
+                "candidate_id": "",
+                "full_context": (
+                    f"Criterion: {row['name']}\nDescription: {row['description'] or ''}\n"
+                    f"Weight: {row['weight']} | Required: {row['required']}\n"
+                    f"Score Range: {row['min_score']} - {row['max_score']}\n"
+                    f"Keywords: {kw_str}"
+                ),
+                "scope": "rubric",
+            })
+        return rows
+
+    # ─── Run Agentic RAG or plain RAG ─────────────────────────────────────────
 
     if ai_config.agentic_rag_enabled:
         orchestrator = LangGraphOrchestrator(container.llm)
         chunk_received = False
-        async for event in orchestrator.ask(prompt, job_id=job_id, correlation_id=correlation_id):
-            if event["type"] == "chunk":
+        async for event in orchestrator.ask(
+            question=question,
+            job_id=job_id,
+            correlation_id=correlation_id,
+            session=container.session,
+            embedding=container.embedding,
+            search_fn=_search_fn,
+            candidate_fn=_candidate_fn,
+            job_fn=_job_fn,
+            rubric_fn=_rubric_fn,
+        ):
+            if event["type"] == "agent_event":
+                yield event  # Pass agent events to frontend for trace visibility
+            elif event["type"] == "chunk":
                 text_chunk = event.get("data", "")
+                citations = event.get("citations", [])
                 if text_chunk and str(text_chunk).strip():
                     chunk_received = True
                     yield {
@@ -145,19 +314,59 @@ async def ask_copilot(
                         "citations": citations,
                     }
             elif event["type"] == "done":
+                done_data = event.get("data", {})
                 if not chunk_received:
+                    # Fallback: plain RAG if agentic produced nothing
+                    evidence = await container.hybrid_search.search(question, job_id=job_id, top_k=5)
+                    fallback_citations = [
+                        {
+                            "id": str(e.id),
+                            "quote": e.quote,
+                            "source": e.source_document or "Resume.pdf",
+                            "page": e.page_number if e.page_number and e.page_number > 0 else 1,
+                            "candidate_id": str(e.metadata.get("candidate_id") or ""),
+                            "chunk_id": str(e.source_chunk_id or e.id),
+                            "full_context": e.metadata.get("full_text") or e.quote,
+                        }
+                        for e in evidence
+                    ]
                     yield {
                         "type": "answer_chunk",
-                        "data": _fallback_synthesis(question),
-                        "citations": citations,
+                        "data": f"Based on screening records: {question}",
+                        "citations": fallback_citations,
                     }
-                yield {"type": "done", "data": event.get("data", "done")}
+                citations_final = done_data.get("citations", []) if isinstance(done_data, dict) else []
+                yield {"type": "done", "data": done_data, "citations": citations_final}
     else:
+        # Plain RAG path
+        evidence = await container.hybrid_search.search(question, job_id=job_id, top_k=5)
+        context = "\n\n".join(
+            f"[{i+1}] Document: {e.source_document} | Page: {e.page_number or 1}\nQuote: \"{e.quote}\""
+            for i, e in enumerate(evidence)
+        )
+        prompt = (
+            "You are an expert HR screening copilot. Use ONLY the retrieved CV context below to answer the question.\n"
+            "MANDATORY INSTRUCTION: You MUST cite the exact source document and page number where you found each piece of info, "
+            "using inline markers like [1], [2] and referencing the document name (e.g., 'According to Alice_Johnson_CV.pdf (Page 1) [1]').\n\n"
+            f"Retrieved Evidence:\n{context}\n\n"
+            f"Question: {question}\n\n"
+            "Answer thoroughly and cite exact CV sources."
+        )
+        citations = [
+            {
+                "id": str(e.id),
+                "quote": e.quote,
+                "source": e.source_document or "Resume.pdf",
+                "page": e.page_number if e.page_number and e.page_number > 0 else 1,
+                "candidate_id": str(e.metadata.get("candidate_id") or ""),
+                "chunk_id": str(e.source_chunk_id or e.id),
+                "full_context": e.metadata.get("full_text") or e.quote,
+            }
+            for e in evidence
+        ]
         response = await container.llm.generate(prompt, correlation_id=correlation_id)
-        ans = response.text if response.text.strip() else _fallback_synthesis(question)
-        yield {
-            "type": "answer_chunk",
-            "data": ans,
-            "citations": citations,
-        }
+        ans = response.text if response.text.strip() else f"Based on talent screening records, here is relevant evidence for: '{question}'."
+        yield {"type": "answer_chunk", "data": ans, "citations": citations}
         yield {"type": "done", "data": ans}
+
+

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import {
   Send,
   Loader2,
@@ -8,19 +8,30 @@ import {
   Sparkles,
   BookOpen,
   FileText,
-  ExternalLink,
   ChevronRight,
   User,
   Bot,
+  Search,
+  Check,
+  ArrowLeft,
+  ArrowRight,
+  Eye,
+  Copy,
+  X,
+  ExternalLink,
 } from "lucide-react"
 import { createSSEConnection, SSEStatus } from "../lib/sse"
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api/v1"
 
 export interface Citation {
+  id?: string
   quote: string
   source: string
   page: number | null
+  candidate_id?: string
+  chunk_id?: string
+  full_context?: string
 }
 
 export interface ChatMessage {
@@ -53,8 +64,19 @@ export function CopilotChat() {
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [, setStatus] = useState<SSEStatus>("closed")
-  const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null)
+
+  // Modal / Document Inspector State
+  const [inspectorOpen, setInspectorOpen] = useState(false)
+  const [activeCitations, setActiveCitations] = useState<Citation[]>([])
+  const [activeCitationIndex, setActiveCitationIndex] = useState<number>(0)
+  const [copied, setCopied] = useState(false)
+  const [searchFilter, setSearchFilter] = useState("")
+
+  const [agentTrace, setAgentTrace] = useState<{agent: string, status: string}[]>([])
+  const [activeStatus, setActiveStatus] = useState<string>("")
+
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const highlightRef = useRef<HTMLDivElement | null>(null)
   const cancelStreamRef = useRef<(() => void) | null>(null)
 
   // Load saved sessions on mount
@@ -88,6 +110,16 @@ export function CopilotChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [sessions, currentSessionId, loading])
 
+  // Scroll to highlighted citation when modal opens or index changes
+  useEffect(() => {
+    if (inspectorOpen) {
+      const timer = setTimeout(() => {
+        highlightRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
+      }, 150)
+      return () => clearTimeout(timer)
+    }
+  }, [inspectorOpen, activeCitationIndex])
+
   const currentSession = sessions.find((s) => s.id === currentSessionId)
   const messages = currentSession?.messages || []
 
@@ -104,7 +136,7 @@ export function CopilotChat() {
     }
     setSessions((prev) => [newSession, ...prev])
     setCurrentSessionId(newSession.id)
-    setSelectedCitation(null)
+    setInspectorOpen(false)
   }
 
   function deleteSession(id: string, e: React.MouseEvent) {
@@ -119,6 +151,23 @@ export function CopilotChat() {
         startNewSession()
       }
     }
+  }
+
+  function openInspector(citations: Citation[], index: number = 0) {
+    if (!citations || citations.length === 0) return
+    setActiveCitations(citations)
+    setActiveCitationIndex(Math.max(0, Math.min(index, citations.length - 1)))
+    setInspectorOpen(true)
+    setCopied(false)
+    setSearchFilter("")
+  }
+
+  function handleCopyQuote(quoteText: string) {
+    const active = activeCitations[activeCitationIndex]
+    const fullText = `"${quoteText}" — ${active?.source || "CV"} (Page ${active?.page ?? 1})`
+    navigator.clipboard.writeText(fullText)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   function handleSend(textToSend?: string) {
@@ -166,13 +215,31 @@ export function CopilotChat() {
 
     let accumulatedAnswer = ""
     let accumulatedCitations: Citation[] = []
+    setAgentTrace([])
+    setActiveStatus("")
 
     const cleanup = createSSEConnection({
       url: `${API_BASE}/chat`,
       body: { question: questionText },
       onStatus: setStatus,
       onEvent: (event: any) => {
-        if (event.type === "answer_chunk") {
+        if (event.type === "agent_event") {
+          const evData = event.data || {}
+          const agentName = evData.agent || ""
+          const agentStatus = evData.status || "done"
+          if (agentName) {
+            setActiveStatus(agentName.replace(/_/g, ' '))
+            setAgentTrace(prev => {
+              const existing = prev.findIndex(t => t.agent === agentName)
+              if (existing >= 0) {
+                const updated = [...prev]
+                updated[existing] = {agent: agentName, status: agentStatus}
+                return updated
+              }
+              return [...prev, {agent: agentName, status: agentStatus}]
+            })
+          }
+        } else if (event.type === "answer_chunk") {
           const chunk = typeof event.data === "string" ? event.data : ""
           accumulatedAnswer += chunk
 
@@ -202,6 +269,7 @@ export function CopilotChat() {
         } else if (event.type === "done" || event.event === "done") {
           setLoading(false)
           setStatus("closed")
+          setActiveStatus("")
         }
       },
     })
@@ -213,6 +281,46 @@ export function CopilotChat() {
     }
   }
 
+  // Helper to render interactive markdown-like text with clickable citation links
+  function renderInteractiveContent(content: string, citations?: Citation[]) {
+    if (!content) return null
+
+    // Match citations formatted as [1], [2], [1: file, Page 1], etc.
+    const tokenRegex = /(\[\d+\]|\[\d+:[^\]]+\])/g
+    const parts = content.split(tokenRegex)
+
+    return (
+      <div className="whitespace-pre-wrap leading-relaxed">
+        {parts.map((part, i) => {
+          const match = part.match(/\[(\d+)(?::\s*([^,\]]+))?\]?/)
+          if (match && citations && citations.length > 0) {
+            const index = parseInt(match[1], 10) - 1
+            if (index >= 0 && index < citations.length) {
+              const cite = citations[index]
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => openInspector(citations, index)}
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded-md bg-purple-100/80 hover:bg-purple-200 text-purple-900 border border-purple-300/80 font-mono text-[11px] font-semibold transition hover:scale-105 shadow-2xs cursor-pointer group align-baseline"
+                  title={`Click to view citation in ${cite.source} (Page ${cite.page ?? 1})`}
+                >
+                  <FileText className="w-3 h-3 text-purple-600 group-hover:text-purple-800" />
+                  <span>
+                    [{index + 1}: {cite.source.replace(/\.[^/.]+$/, "")}#{cite.page ?? 1}]
+                  </span>
+                </button>
+              )
+            }
+          }
+          return <span key={i}>{part}</span>
+        })}
+      </div>
+    )
+  }
+
+  const currentCitation = activeCitations[activeCitationIndex]
+
   return (
     <div className="flex flex-col h-[calc(100vh-140px)] min-h-[550px] space-y-3">
       {/* Top Header */}
@@ -222,7 +330,7 @@ export function CopilotChat() {
             <Sparkles className="w-6 h-6 text-purple-600" /> HR Screening Copilot
           </h2>
           <p className="text-xs text-surface-muted">
-            Domain RAG assistant with grounded citations, semantic search, and audit trail verification.
+            Domain RAG assistant with grounded citations, interactive CV inspector, and full audit trail verification.
           </p>
         </div>
         <button
@@ -278,7 +386,7 @@ export function CopilotChat() {
           </div>
         </div>
 
-        {/* Center & Right: Chat Area + Citation Inspector */}
+        {/* Center & Right: Chat Area */}
         <div className="md:col-span-3 flex flex-col bg-white rounded-xl border border-surface-border shadow-xs overflow-hidden">
           {/* Messages Container */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -290,7 +398,7 @@ export function CopilotChat() {
                 <div>
                   <h3 className="text-base font-semibold text-surface-text">Welcome to your Talent Copilot</h3>
                   <p className="text-xs text-surface-muted max-w-md mt-1">
-                    Ask questions about applicant competencies, compare qualifications against job rubrics, or verify screening evidence with citations.
+                    Ask questions about applicant competencies, compare qualifications against job rubrics, or click on citations to inspect exact CV excerpts.
                   </p>
                 </div>
 
@@ -337,9 +445,9 @@ export function CopilotChat() {
                           : "bg-surface-page/70 text-surface-text border border-surface-border rounded-tl-xs"
                       }`}
                     >
-                      <div className="whitespace-pre-wrap leading-relaxed">
+                      <div>
                         {m.content ? (
-                          m.content
+                          renderInteractiveContent(m.content, m.citations)
                         ) : (
                           <div className="flex items-center gap-2 text-surface-muted text-xs italic">
                             <Loader2 className="w-3.5 h-3.5 animate-spin" /> Retrieving context & synthesizing response…
@@ -347,33 +455,55 @@ export function CopilotChat() {
                         )}
                       </div>
 
-                      {/* Interactive Grounded Citations */}
+                      {/* Interactive Grounded Citations Deck */}
                       {m.citations && m.citations.length > 0 && (
                         <div className="mt-4 pt-3 border-t border-surface-border/60">
-                          <div className="text-xs font-semibold text-purple-900 flex items-center gap-1 mb-2">
-                            <BookOpen className="w-3.5 h-3.5 text-purple-600" />
-                            Grounded References ({m.citations.length})
+                          <div className="text-xs font-semibold text-purple-900 flex items-center justify-between mb-2">
+                            <span className="flex items-center gap-1.5">
+                              <BookOpen className="w-3.5 h-3.5 text-purple-600" />
+                              Agentic RAG Sources ({m.citations.length})
+                            </span>
+                            <span className="text-[10px] text-surface-muted">
+                              Multi-scope retrieval · Click to inspect
+                            </span>
                           </div>
-                          <div className="grid grid-cols-1 gap-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {m.citations.map((cite, idx) => (
                               <div
                                 key={idx}
-                                onClick={() => setSelectedCitation(cite)}
-                                className="p-2.5 rounded-lg border border-purple-100 bg-white hover:bg-purple-50/70 hover:border-purple-300 transition cursor-pointer text-xs"
+                                onClick={() => openInspector(m.citations || [], idx)}
+                                className="p-2.5 rounded-lg border border-purple-100 bg-white hover:bg-purple-50/80 hover:border-purple-300 transition cursor-pointer text-xs group flex flex-col justify-between"
                               >
-                                <div className="flex items-center justify-between text-purple-900 font-semibold mb-1">
-                                  <span className="flex items-center gap-1">
-                                    <FileText className="w-3 h-3 text-purple-600" /> [{idx + 1}] {cite.source}
-                                  </span>
-                                  {cite.page !== null && (
-                                    <span className="text-[10px] px-1.5 py-0.2 bg-purple-100 text-purple-800 rounded font-mono">
-                                      Page {cite.page}
+                                <div>
+                                  <div className="flex items-center justify-between text-purple-900 font-semibold mb-1">
+                                    <span className="flex items-center gap-1 truncate max-w-[150px]" title={cite.source}>
+                                      <FileText className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                                      <span className="truncate">[{idx + 1}] {cite.source}</span>
+                                    </span>
+                                    <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-800 rounded font-mono shrink-0">
+                                      Pg {cite.page ?? 1}
+                                    </span>
+                                  </div>
+                                  {(cite as any).scope && (
+                                    <span className={`inline-block text-[9px] px-1.5 py-0.5 rounded-full font-semibold mb-1 ${
+                                      (cite as any).scope === 'candidate_cv' ? 'bg-blue-100 text-blue-700' :
+                                      (cite as any).scope === 'talent_pool' ? 'bg-green-100 text-green-700' :
+                                      (cite as any).scope === 'job_requirements' ? 'bg-orange-100 text-orange-700' :
+                                      (cite as any).scope === 'rubric' ? 'bg-yellow-100 text-yellow-800' :
+                                      (cite as any).scope === 'candidate_profile' ? 'bg-indigo-100 text-indigo-700' :
+                                      'bg-gray-100 text-gray-600'
+                                    }`}>
+                                      🔍 {((cite as any).scope as string).replace(/_/g, ' ')}
                                     </span>
                                   )}
+                                  <p className="text-surface-muted italic line-clamp-2 text-[11px]">
+                                    &ldquo;{cite.quote}&rdquo;
+                                  </p>
                                 </div>
-                                <p className="text-surface-muted italic line-clamp-2">
-                                  "{cite.quote}"
-                                </p>
+                                <div className="mt-2 pt-1.5 border-t border-purple-50 flex items-center justify-between text-[10px] text-purple-700 font-medium group-hover:text-purple-900">
+                                  <span>Inspect source</span>
+                                  <ExternalLink className="w-3 h-3 text-purple-500 group-hover:translate-x-0.5 transition" />
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -390,34 +520,30 @@ export function CopilotChat() {
             )}
 
             {loading && (
-              <div className="flex items-center gap-2 text-xs text-purple-700 bg-purple-50 px-3 py-2 rounded-lg border border-purple-200 w-fit">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-600" />
-                <span>Agentic RAG is streaming evidence from database…</span>
+              <div className="flex flex-col gap-1.5 bg-purple-50 border border-purple-200 rounded-xl px-3 py-2.5 w-fit max-w-sm">
+                <div className="flex items-center gap-2 text-xs text-purple-700 font-semibold">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-600" />
+                  <span>Agentic RAG {activeStatus ? `▶ ${activeStatus}` : "initializing…"}</span>
+                </div>
+                {agentTrace.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {agentTrace.map((t, i) => (
+                      <span key={i} className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${
+                        t.status === 'done' ? 'bg-green-100 text-green-700' :
+                        t.status === 'error' ? 'bg-red-100 text-red-700' :
+                        'bg-purple-100 text-purple-700'
+                      }`}>
+                        ✓ {t.agent.replace(/_/g, ' ')}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
+
             <div ref={messagesEndRef} />
           </div>
-
-          {/* Citation Inspector Modal / Bottom Sheet */}
-          {selectedCitation && (
-            <div className="p-3 bg-purple-50 border-t border-purple-200 flex items-start justify-between gap-3 text-xs">
-              <div className="space-y-1">
-                <div className="font-semibold text-purple-950 flex items-center gap-1.5">
-                  <ExternalLink className="w-3.5 h-3.5 text-purple-600" /> Citation Source: {selectedCitation.source} (Page {selectedCitation.page ?? 0})
-                </div>
-                <div className="text-purple-900 bg-white p-2 rounded border border-purple-200 font-mono text-[11px]">
-                  "{selectedCitation.quote}"
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedCitation(null)}
-                className="text-purple-700 hover:text-purple-950 font-bold px-2 py-1"
-              >
-                ✕
-              </button>
-            </div>
-          )}
 
           {/* Input Form */}
           <form
@@ -437,7 +563,7 @@ export function CopilotChat() {
             <button
               type="submit"
               disabled={loading || !input.trim()}
-              className="px-4 py-2.5 bg-brand-primary hover:bg-brand-primary/90 text-white rounded-xl text-sm font-medium flex items-center gap-1.5 shadow-xs transition disabled:opacity-50"
+              className="px-4 py-2.5 bg-brand-primary hover:bg-brand-primary/90 text-white rounded-xl text-sm font-medium flex items-center gap-1.5 shadow-xs transition disabled:opacity-50 cursor-pointer"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               <span>Ask</span>
@@ -445,6 +571,205 @@ export function CopilotChat() {
           </form>
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* RICH CV CITATION INSPECTOR & DOCUMENT VIEWER MODAL                        */}
+      {/* ========================================================================= */}
+      {inspectorOpen && currentCitation && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-purple-200">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-surface-border bg-gradient-to-r from-purple-50/80 via-white to-purple-50/50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shadow-2xs">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-heading font-bold text-base text-surface-text flex items-center gap-1.5">
+                      {currentCitation.source}
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-mono text-[11px] font-semibold">
+                      Page {currentCitation.page ?? 1}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-surface-muted flex items-center gap-1.5">
+                    <span>Talent Pool CV Inspector</span>
+                    <span>•</span>
+                    <span className="text-purple-700 font-medium">
+                      Citation {activeCitationIndex + 1} of {activeCitations.length}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Header Actions */}
+              <div className="flex items-center gap-2">
+                {/* Previous / Next Citation */}
+                {activeCitations.length > 1 && (
+                  <div className="flex items-center bg-gray-100 rounded-lg p-0.5 border border-gray-200 mr-2">
+                    <button
+                      onClick={() => setActiveCitationIndex((prev) => Math.max(0, prev - 1))}
+                      disabled={activeCitationIndex === 0}
+                      className="p-1 rounded text-surface-text hover:bg-white disabled:opacity-40 transition cursor-pointer"
+                      title="Previous citation"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="px-2 text-xs font-mono text-surface-muted">
+                      {activeCitationIndex + 1}/{activeCitations.length}
+                    </span>
+                    <button
+                      onClick={() =>
+                        setActiveCitationIndex((prev) => Math.min(activeCitations.length - 1, prev + 1))
+                      }
+                      disabled={activeCitationIndex === activeCitations.length - 1}
+                      className="p-1 rounded text-surface-text hover:bg-white disabled:opacity-40 transition cursor-pointer"
+                      title="Next citation"
+                    >
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => handleCopyQuote(currentCitation.quote)}
+                  className="px-2.5 py-1.5 rounded-lg border border-surface-border hover:bg-surface-page text-xs font-medium text-surface-text flex items-center gap-1 transition"
+                  title="Copy cited quote with source reference"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copied ? "Copied!" : "Copy Quote"}</span>
+                </button>
+
+                <button
+                  onClick={() => setInspectorOpen(false)}
+                  className="p-1.5 rounded-lg text-surface-muted hover:text-surface-text hover:bg-gray-100 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Matched Excerpt Banner */}
+            <div className="p-3 bg-amber-50/80 border-b border-amber-200/80 flex items-start gap-3">
+              <div className="p-1.5 bg-amber-100 text-amber-800 rounded-lg shrink-0 mt-0.5">
+                <Eye className="w-4 h-4" />
+              </div>
+              <div className="flex-1 text-xs">
+                <div className="font-semibold text-amber-950 flex items-center gap-2">
+                  <span>📌 Grounded Evidence Passage (Cited by Copilot):</span>
+                  <span className="font-mono text-[10px] bg-amber-200/60 px-1.5 py-0.2 rounded text-amber-900">
+                    Exact Match
+                  </span>
+                </div>
+                <div className="mt-1 text-amber-900 font-medium italic bg-white/80 p-2.5 rounded-lg border border-amber-200 text-xs">
+                  "{currentCitation.quote}"
+                </div>
+              </div>
+            </div>
+
+            {/* In-Document Search Bar */}
+            <div className="px-4 py-2 bg-gray-50 border-b border-surface-border flex items-center gap-2 text-xs">
+              <Search className="w-3.5 h-3.5 text-surface-muted" />
+              <input
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                placeholder="Filter or search inside this candidate's CV text…"
+                className="flex-1 bg-transparent border-none outline-hidden text-xs text-surface-text placeholder:text-surface-muted"
+              />
+              {searchFilter && (
+                <button
+                  onClick={() => setSearchFilter("")}
+                  className="text-surface-muted hover:text-surface-text text-[10px] px-1 rounded"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* Full Document Body View */}
+            <div className="flex-1 overflow-y-auto p-4 bg-white text-xs font-mono leading-relaxed space-y-2">
+              {(() => {
+                const docText = currentCitation.full_context || currentCitation.quote || ""
+                const quote = currentCitation.quote.trim()
+
+                // Check if the quote is inside the full text
+                const quoteIndex = quote ? docText.indexOf(quote) : -1
+
+                if (quoteIndex !== -1) {
+                  const before = docText.slice(0, quoteIndex)
+                  const matched = docText.slice(quoteIndex, quoteIndex + quote.length)
+                  const after = docText.slice(quoteIndex + quote.length)
+
+                  return (
+                    <div>
+                      <div className="text-gray-600 whitespace-pre-wrap">{before}</div>
+                      {/* Highlighted Cited Passage */}
+                      <div
+                        ref={highlightRef}
+                        className="my-3 p-3.5 rounded-xl bg-amber-100 border-l-4 border-amber-500 shadow-sm text-amber-950 font-sans"
+                      >
+                        <div className="flex items-center justify-between text-[11px] font-bold text-amber-900 mb-1">
+                          <span className="flex items-center gap-1.5">
+                            ★ CITED RESUME SECTION (Page {currentCitation.page ?? 1})
+                          </span>
+                          <span className="font-mono text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded">
+                            Verified Source
+                          </span>
+                        </div>
+                        <p className="whitespace-pre-wrap font-medium text-xs leading-relaxed">
+                          {matched}
+                        </p>
+                      </div>
+                      <div className="text-gray-600 whitespace-pre-wrap">{after}</div>
+                    </div>
+                  )
+                }
+
+                // Fallback: render text with lines, and highlight search matches or quote
+                return (
+                  <div className="space-y-3">
+                    <div
+                      ref={highlightRef}
+                      className="p-3.5 rounded-xl bg-amber-50 border-l-4 border-amber-500 text-amber-950 font-sans"
+                    >
+                      <div className="text-[11px] font-bold text-amber-900 mb-1">
+                        ★ Cited Passage (Target Quote):
+                      </div>
+                      <p className="whitespace-pre-wrap text-xs italic">{quote}</p>
+                    </div>
+
+                    <div className="pt-2 border-t border-gray-100">
+                      <div className="text-[10px] font-bold uppercase text-surface-muted mb-1 font-sans">
+                        Full Document Content Context:
+                      </div>
+                      <div className="whitespace-pre-wrap text-gray-700 bg-gray-50/70 p-3 rounded-lg border border-gray-200">
+                        {docText}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 bg-gray-50 border-t border-surface-border flex items-center justify-between text-xs text-surface-muted">
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-surface-text">Document:</span>
+                <span className="font-mono">{currentCitation.source}</span>
+                <span>•</span>
+                <span>Page: {currentCitation.page ?? 1}</span>
+              </div>
+              <button
+                onClick={() => setInspectorOpen(false)}
+                className="px-4 py-1.5 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-xs font-medium transition cursor-pointer"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

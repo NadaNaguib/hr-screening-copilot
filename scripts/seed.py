@@ -242,8 +242,9 @@ async def seed() -> None:
         jobs = await _ensure_jobs(session)
         await _ensure_rubrics(session, jobs)
         await _ensure_sla_rules(session, jobs)
-        await _ensure_candidates(session, jobs)
         await session.commit()
+        from scripts.seed_full_candidates import run_seed
+        await run_seed()
         print("Seed complete.")
         print("Users:")
         for user in users:

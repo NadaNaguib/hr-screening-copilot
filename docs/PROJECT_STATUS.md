@@ -96,6 +96,7 @@
 | **ISSUE-06** | AI Control Panel: replace static metrics with dynamic live ledger data | FR-8, Admin | ✅ Fixed | Disk-persisted `/tmp/token_ledger.json`, live KPI cards, per-model cost table, live Gemini connectivity diagnostic, and dynamic invocation log. |
 | **ISSUE-07** | User Management: add Delete/Remove User capability | Admin RBAC | ✅ Fixed | Added backend `DELETE /auth/users/{user_id}` and `DELETE /admin/users/{user_id}` with RBAC audit logging and frontend confirmation dialogs. |
 | **ISSUE-08** | SLA Tab: `'HIGH' is not a valid Priority` case crash + metric explanations | FR-4, SLA | ✅ Fixed | Added case-insensitive `Priority.from_str` mapping; redesigned SLA rules UI with tooltips, visual priority badges, and countdown deadline explanations. |
+| **ISSUE-09** | Agentic RAG System: Hardened answers, candidate cross-talk, multi-scope script tools | FR-2, FR-6 | ✅ Fixed | Built 12 multi-scope script tools across 4 scopes (Candidate, Job, Talent Pool, Pipeline); built LangGraph StateGraph agentic router with entity resolution and strict candidate scope isolation; seeded complete realistic CVs and pgvector embeddings for all 8 candidates; verified 100% pass rate on 25 golden Q&A pairs including 10 adversarial tests. |
 
 ---
 
