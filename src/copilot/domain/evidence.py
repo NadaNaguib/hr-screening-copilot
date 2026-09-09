@@ -32,3 +32,11 @@ class Evidence:
     confidence: float = 0.0
     metadata: dict[str, Any] = field(default_factory=dict)
     created_at: datetime = field(default_factory=datetime.utcnow)
+
+    @property
+    def source_document(self) -> str:
+        return str(self.metadata.get("source_document") or self.metadata.get("filename", "") or "")
+
+    @property
+    def page_number(self) -> int:
+        return int(self.metadata.get("page_number", 0) or 0)

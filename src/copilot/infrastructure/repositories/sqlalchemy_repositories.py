@@ -188,7 +188,7 @@ def _review_task_to_domain(orm: ReviewTaskORM) -> ReviewTask:
         id=orm.id,
         candidate_id=orm.candidate_id,
         job_id=orm.job_id,
-        status=ReviewStatus(orm.status.value),
+        status=ReviewStatus(orm.status.value if hasattr(orm.status, "value") else str(orm.status)),
         priority=orm.priority,
         triage_deadline_at=orm.triage_deadline_at,
         decision_deadline_at=orm.decision_deadline_at,
@@ -431,7 +431,7 @@ class SqlAlchemyVectorStore(VectorStorePort):
         sql = text(
             """
             INSERT INTO chunks (id, document_id, job_id, text, embedding, page_number, metadata)
-            VALUES (:id, :document_id, :job_id, :text, (:embedding)::vector, :page_number, (:metadata)::json)
+            VALUES (:id, :document_id, :job_id, :text, CAST(:embedding AS vector), :page_number, CAST(:metadata AS json))
             """
         )
         for i, (chunk_text, page, meta) in enumerate(chunks):
@@ -461,10 +461,10 @@ class SqlAlchemyVectorStore(VectorStorePort):
         vector_str = f"[{','.join(str(v) for v in query_embedding)}]"
         sql = """
             SELECT id, document_id, job_id, text, page_number, metadata,
-                   embedding <=> :embedding AS distance
+                   embedding <=> CAST(:embedding AS vector) AS distance
             FROM chunks
-            WHERE (:job_id::uuid IS NULL OR job_id = :job_id::uuid)
-            ORDER BY embedding <=> :embedding
+            WHERE (CAST(:job_id AS uuid) IS NULL OR job_id = CAST(:job_id AS uuid))
+            ORDER BY embedding <=> CAST(:embedding AS vector)
             LIMIT :limit
         """
         result = await self._session.execute(
@@ -477,14 +477,14 @@ class SqlAlchemyVectorStore(VectorStorePort):
         )
         evidence_list: list[Evidence] = []
         for row in result.mappings().all():
-            meta = row["metadata"] or {}
+            meta = dict(row["metadata"] or {})
+            meta["page_number"] = row["page_number"]
+            meta["source_document"] = meta.get("filename", "")
             evidence_list.append(
                 Evidence(
                     id=row["id"],
                     source_chunk_id=str(row["id"]),
                     quote=row["text"],
-                    source_document=meta.get("filename", ""),
-                    page_number=row["page_number"],
                     confidence=max(0.0, 1.0 - float(row["distance"])),
                     metadata=meta,
                 )

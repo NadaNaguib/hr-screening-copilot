@@ -25,10 +25,10 @@ def _deterministic_embedding(text: str, dim: int = DIMENSIONS) -> list[float]:
 class GeminiEmbeddingAdapter(EmbeddingPort):
     """Embedding adapter using Gemini API or deterministic fallback."""
 
-    def __init__(self, model: str = "models/text-embedding-004", api_key: str | None = None) -> None:
-        self.model = model
+    def __init__(self, model: str | None = None, api_key: str | None = None) -> None:
+        self.model = model or os.environ.get("GEMINI_EMBEDDING_MODEL", "models/gemini-embedding-001")
         self.api_key = api_key
-        self._client: Any | None = None
+        self._configured = False
 
     def _ensure_config(self) -> None:
         from copilot.infrastructure.config.ai_config import AIConfigManager
@@ -44,6 +44,7 @@ class GeminiEmbeddingAdapter(EmbeddingPort):
         return DIMENSIONS
 
     async def embed(self, texts: list[str], correlation_id: str = "") -> list[list[float]]:
+        import asyncio
         from copilot.infrastructure.config.ai_config import AIConfigManager
 
         ai_config = AIConfigManager().config
@@ -55,17 +56,25 @@ class GeminiEmbeddingAdapter(EmbeddingPort):
         try:
             import google.generativeai as genai
 
-            if self._client is None:
+            if not self._configured:
                 genai.configure(api_key=self.api_key)
-            result = await genai.embed_content_async(
+                self._configured = True
+
+            result = await asyncio.to_thread(
+                genai.embed_content,
                 model=self.model,
-                content=texts,
+                content=texts if len(texts) > 1 else texts[0],
                 task_type="retrieval_document",
+                output_dimensionality=self.dimensions(),
             )
-            embeddings = result.get("embedding", [])
-            if not embeddings and "embeddings" in result:
-                embeddings = result["embeddings"]
-            return embeddings
+            if "embedding" in result:
+                val = result["embedding"]
+                if val and isinstance(val[0], list):
+                    return val  # type: ignore[return-value]
+                return [val]  # type: ignore[return-value]
+            if "embeddings" in result:
+                return result["embeddings"]  # type: ignore[return-value]
+            return [_deterministic_embedding(t) for t in texts]
         except Exception:
             # Degrade to deterministic embeddings on failure.
             return [_deterministic_embedding(t) for t in texts]
