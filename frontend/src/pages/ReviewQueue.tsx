@@ -47,7 +47,7 @@ export function ReviewQueue() {
   const [reason, setReason] = useState<Record<string, string>>({})
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
-  const [tick, setTick] = useState(0)
+  const [, setTick] = useState(0)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Update SLA countdowns every 30 s

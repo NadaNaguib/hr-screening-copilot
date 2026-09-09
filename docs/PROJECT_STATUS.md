@@ -104,6 +104,21 @@
 
 ---
 
+## Active Issues & Fixes (Session 7 Tracking)
+
+| ID | Issue Description | Spec Ref | Status |
+|---|---|---|---|
+| **ISSUE-01** | Job visibility, CV generation/matching, delete Job & delete Candidate | FR-1, UI | 🟡 In Progress |
+| **ISSUE-02** | Duplicate "Senior Full Stack" entries in job dropdown | Data/Seed | 🟡 In Progress |
+| **ISSUE-03** | "Run Pipeline" returns 500 Internal Server Error | FR-2, Pipeline | 🟡 In Progress |
+| **ISSUE-04** | Copilot Chat: SSE streaming text display, save chat history, citations UI | FR-6, Chat | 🟡 In Progress |
+| **ISSUE-05** | Review Queue: Candidate Name instead of UUID, Reviewer Action Buttons (T5) | FR-5, T5 Queue | 🟡 In Progress |
+| **ISSUE-06** | AI Control Panel: replace static metrics with dynamic live ledger data | FR-8, Admin | 🟡 In Progress |
+| **ISSUE-07** | User Management: add Delete/Remove User capability | Admin RBAC | 🟡 In Progress |
+| **ISSUE-08** | SLA Tab: `'HIGH' is not a valid Priority` case crash + metric explanations | FR-4, SLA | 🟡 In Progress |
+
+---
+
 ## Implementation Plan (Ordered by Priority)
 
 ### 🔴 P1 · Evaluation Set Expansion — Est. 2h [STARTED Sep 9]

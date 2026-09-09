@@ -22,7 +22,7 @@ async def list_sla_rules(container: Container, role: str) -> list[dict]:
             SLARule(
                 id=orm.id,
                 job_id=orm.job_id,
-                priority=Priority(orm.priority),
+                priority=Priority.from_str(orm.priority),
                 triage_hours=orm.triage_hours,
                 decision_hours=orm.decision_hours,
                 active=orm.active,

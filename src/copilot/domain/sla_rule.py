@@ -15,6 +15,16 @@ class Priority(str, Enum):
     MEDIUM = "medium"
     LOW = "low"
 
+    @classmethod
+    def from_str(cls, value: str | Priority) -> Priority:
+        if isinstance(value, cls):
+            return value
+        val = str(value).lower()
+        for member in cls:
+            if member.value == val:
+                return member
+        return cls.MEDIUM
+
 
 _GLOBAL_SLA_HOURS: dict[Priority, int] = {
     Priority.HIGH: 24,
