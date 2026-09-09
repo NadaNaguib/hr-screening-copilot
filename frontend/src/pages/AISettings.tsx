@@ -216,9 +216,15 @@ export function AISettings() {
               disabled={saving}
               className="w-full px-3.5 py-2.5 border border-surface-border rounded-lg text-sm bg-white focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary outline-none"
             >
-              {config.available_models.map((m) => (
-                <option key={m} value={m}>{m} {m === "gemini-2.5-flash" ? "(Recommended)" : ""}</option>
-              ))}
+              {config.available_models.map((m) => {
+                let label = m
+                if (m === "gemini-2.5-flash") label = `${m} (Recommended Flash)`
+                else if (m === "gemini-3.1-pro-preview") label = `${m} (Pro Model)`
+                else if (m === "gemini-2.5-flash-lite") label = `${m} (Fast Lite)`
+                return (
+                  <option key={m} value={m}>{label}</option>
+                )
+              })}
             </select>
             <span className="text-[11px] text-surface-muted mt-1 block">
               Multi-adapter fallback switches from Gemini REST to SDK if primary adapter fails.

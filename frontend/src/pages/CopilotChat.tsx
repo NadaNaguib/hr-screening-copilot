@@ -21,6 +21,7 @@ import {
   ExternalLink,
 } from "lucide-react"
 import { createSSEConnection, SSEStatus } from "../lib/sse"
+import { CvViewerModal } from "../components/CvViewerModal"
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api/v1"
 
@@ -71,6 +72,7 @@ export function CopilotChat() {
   const [activeCitationIndex, setActiveCitationIndex] = useState<number>(0)
   const [copied, setCopied] = useState(false)
   const [searchFilter, setSearchFilter] = useState("")
+  const [selectedCvCandidate, setSelectedCvCandidate] = useState<{ id: string; name?: string } | null>(null)
 
   const [agentTrace, setAgentTrace] = useState<{agent: string, status: string}[]>([])
   const [activeStatus, setActiveStatus] = useState<string>("")
@@ -502,7 +504,24 @@ export function CopilotChat() {
                                 </div>
                                 <div className="mt-2 pt-1.5 border-t border-purple-50 flex items-center justify-between text-[10px] text-purple-700 font-medium group-hover:text-purple-900">
                                   <span>Inspect source</span>
-                                  <ExternalLink className="w-3 h-3 text-purple-500 group-hover:translate-x-0.5 transition" />
+                                  <div className="flex items-center gap-1.5">
+                                    {cite.candidate_id && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setSelectedCvCandidate({
+                                            id: cite.candidate_id!,
+                                            name: cite.source.replace(/_CV\.(pdf|txt|docx)/i, "").replace(/_/g, " "),
+                                          })
+                                        }}
+                                        className="px-1.5 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-brand-primary border border-brand-primary/30 rounded text-[9px] font-semibold flex items-center gap-0.5 transition cursor-pointer"
+                                        title="View original uploaded CV document"
+                                      >
+                                        <FileText className="w-2.5 h-2.5" /> Full CV
+                                      </button>
+                                    )}
+                                    <ExternalLink className="w-3 h-3 text-purple-500 group-hover:translate-x-0.5 transition" />
+                                  </div>
                                 </div>
                               </div>
                             ))}
@@ -634,12 +653,28 @@ export function CopilotChat() {
 
                 <button
                   onClick={() => handleCopyQuote(currentCitation.quote)}
-                  className="px-2.5 py-1.5 rounded-lg border border-surface-border hover:bg-surface-page text-xs font-medium text-surface-text flex items-center gap-1 transition"
-                  title="Copy cited quote with source reference"
+                  className="px-2.5 py-1.5 rounded-lg border border-surface-border hover:bg-gray-50 text-surface-text text-xs flex items-center gap-1.5 transition cursor-pointer"
+                  title="Copy cited quote to clipboard"
                 >
                   {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copied ? "Copied!" : "Copy Quote"}</span>
                 </button>
+
+                {currentCitation.candidate_id && (
+                  <button
+                    onClick={() => {
+                      setSelectedCvCandidate({
+                        id: currentCitation.candidate_id!,
+                        name: currentCitation.source.replace(/_CV\.(pdf|txt|docx)/i, "").replace(/_/g, " "),
+                      })
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg border border-brand-primary/30 bg-indigo-50 hover:bg-indigo-100 text-brand-primary text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
+                    title="Open original uploaded CV document in full viewer"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>View Full Original CV</span>
+                  </button>
+                )}
 
                 <button
                   onClick={() => setInspectorOpen(false)}
@@ -770,6 +805,14 @@ export function CopilotChat() {
           </div>
         </div>
       )}
+
+      {/* Full Original CV Document Viewer Modal */}
+      <CvViewerModal
+        candidateId={selectedCvCandidate?.id || null}
+        candidateName={selectedCvCandidate?.name}
+        isOpen={!!selectedCvCandidate}
+        onClose={() => setSelectedCvCandidate(null)}
+      />
     </div>
   )
 }

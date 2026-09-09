@@ -33,9 +33,12 @@ class AIConfigManager:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             settings = get_settings()
+            initial_model = settings.gemini_model or "gemini-2.5-flash"
+            if initial_model == "gemini-2.5-pro":
+                initial_model = "gemini-2.5-flash"
             cls._instance._config = AIConfig(
                 gemini_api_key=settings.gemini_api_key,
-                gemini_model=settings.gemini_model or "gemini-2.5-flash",
+                gemini_model=initial_model,
                 ai_enabled=True,
                 plain_rag_enabled=True,
                 agentic_rag_enabled=True,
@@ -47,6 +50,8 @@ class AIConfigManager:
         return self._config
 
     def update(self, **kwargs: Any) -> None:
+        if kwargs.get("gemini_model") == "gemini-2.5-pro":
+            kwargs["gemini_model"] = "gemini-2.5-flash"
         for key, value in kwargs.items():
             if hasattr(self._config, key):
                 setattr(self._config, key, value)

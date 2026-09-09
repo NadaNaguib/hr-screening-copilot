@@ -15,6 +15,7 @@ import {
   FileText,
   UserCheck,
 } from "lucide-react"
+import { CvViewerModal } from "../components/CvViewerModal"
 
 interface Job {
   id: string
@@ -51,6 +52,8 @@ export function JobsAndCandidates() {
   const [deletingJob, setDeletingJob] = useState(false)
   const [deletingCandidateId, setDeletingCandidateId] = useState<string | null>(null)
   const [runningPipelineId, setRunningPipelineId] = useState<string | null>(null)
+  const [expandedSkills, setExpandedSkills] = useState<Record<string, boolean>>({})
+  const [selectedCv, setSelectedCv] = useState<{ id: string; name?: string } | null>(null)
 
   useEffect(() => {
     fetchJobs()
@@ -439,16 +442,46 @@ export function JobsAndCandidates() {
                       {c.years_of_experience ? `${c.years_of_experience.toFixed(1)} yrs` : "—"}
                     </td>
                     <td className="px-4 py-3.5">
-                      <div className="flex flex-wrap gap-1 max-w-xs">
-                        {(c.skills || []).slice(0, 4).map((sk, i) => (
-                          <span key={i} className="px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-700 font-mono">
-                            {sk}
-                          </span>
-                        ))}
-                        {(c.skills || []).length > 4 && (
-                          <span className="text-xs text-surface-muted">+{c.skills.length - 4}</span>
-                        )}
-                      </div>
+                      {(() => {
+                        const skills = c.skills || []
+                        const isExpanded = expandedSkills[c.id]
+                        if (skills.length === 0) {
+                          return <span className="text-xs text-surface-muted italic">None parsed</span>
+                        }
+                        const displayedSkills = isExpanded ? skills : skills.slice(0, 4)
+                        const remaining = skills.slice(4)
+
+                        return (
+                          <div className="space-y-1.5 max-w-sm">
+                            <div className="flex flex-wrap gap-1">
+                              {displayedSkills.map((sk, i) => (
+                                <span key={i} className="px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-700 font-mono">
+                                  {sk}
+                                </span>
+                              ))}
+                              {remaining.length > 0 && !isExpanded && (
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedSkills((prev) => ({ ...prev, [c.id]: true }))}
+                                  title={`Remaining skills: ${remaining.join(", ")} (Click to expand)`}
+                                  className="px-1.5 py-0.5 rounded text-xs bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary font-semibold font-mono transition cursor-pointer border border-brand-primary/20"
+                                >
+                                  +{remaining.length} more
+                                </button>
+                              )}
+                            </div>
+                            {isExpanded && remaining.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedSkills((prev) => ({ ...prev, [c.id]: false }))}
+                                className="text-[11px] text-brand-primary hover:underline font-medium block cursor-pointer"
+                              >
+                                Show less
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })()}
                     </td>
                     <td className="px-4 py-3.5">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -476,6 +509,14 @@ export function JobsAndCandidates() {
                       )}
                     </td>
                     <td className="px-4 py-3.5 text-right space-x-2 whitespace-nowrap">
+                      <button
+                        onClick={() => setSelectedCv({ id: c.id, name: c.full_name })}
+                        title="View full original CV"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-indigo-50 hover:bg-indigo-100 text-brand-primary border border-brand-primary/30 rounded-md font-medium transition"
+                      >
+                        <FileText className="w-3 h-3" />
+                        View CV
+                      </button>
                       {(isAdmin() || isRecruiter()) && (
                         <>
                           <button
@@ -513,6 +554,14 @@ export function JobsAndCandidates() {
           )}
         </div>
       </div>
+
+      {/* Original CV Viewer Modal */}
+      <CvViewerModal
+        candidateId={selectedCv?.id || null}
+        candidateName={selectedCv?.name}
+        isOpen={!!selectedCv}
+        onClose={() => setSelectedCv(null)}
+      />
     </div>
   )
 }

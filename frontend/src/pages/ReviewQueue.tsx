@@ -14,7 +14,9 @@ import {
   Briefcase,
   AlertTriangle,
   RefreshCw,
+  FileText,
 } from "lucide-react"
+import { CvViewerModal } from "../components/CvViewerModal"
 
 interface Task {
   id: string
@@ -48,6 +50,7 @@ export function ReviewQueue() {
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState<Record<string, boolean>>({})
   const [reason, setReason] = useState<Record<string, string>>({})
+  const [selectedCv, setSelectedCv] = useState<{ id: string; name?: string } | null>(null)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
   const [, setTick] = useState(0)
@@ -264,6 +267,14 @@ export function ReviewQueue() {
                     <div className="text-[11px] text-surface-muted/70 font-mono">
                       ID: {t.candidate_id.slice(0, 8)}
                     </div>
+                    <button
+                      id={`btn-view-cv-${t.id.slice(0, 8)}`}
+                      onClick={() => setSelectedCv({ id: t.candidate_id, name: t.candidate_name })}
+                      className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 text-brand-primary border border-brand-primary/30 rounded-md transition shadow-2xs"
+                      title="View original candidate CV file"
+                    >
+                      <FileText className="w-3.5 h-3.5" /> View Original CV
+                    </button>
                   </td>
 
                   {/* Status Badge */}
@@ -410,6 +421,14 @@ export function ReviewQueue() {
           </div>
         )}
       </div>
+
+      {/* Original CV Viewer Modal */}
+      <CvViewerModal
+        candidateId={selectedCv?.id || null}
+        candidateName={selectedCv?.name}
+        isOpen={!!selectedCv}
+        onClose={() => setSelectedCv(null)}
+      />
     </div>
   )
 }

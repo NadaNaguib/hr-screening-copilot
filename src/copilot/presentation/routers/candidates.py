@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, UploadFile
+from fastapi import APIRouter, Depends, Response, UploadFile
 from pydantic import BaseModel
 
 from copilot.application.use_cases.upload_candidate import upload_candidate
@@ -97,20 +97,70 @@ async def get_candidate_cv(
     container: Container = Depends(get_container),
     user: dict = Depends(get_current_user),
 ) -> dict:
+    from sqlalchemy import select
     from copilot.domain.errors import NotFoundError
+    from copilot.infrastructure.db.models import DocumentORM
 
     cand = await container.candidate_repository.get_candidate(candidate_id)
     if not cand:
         raise NotFoundError(f"Candidate {candidate_id} not found")
+
+    docs_res = await container.session.execute(select(DocumentORM))
+    doc = None
+    for d in docs_res.scalars().all():
+        meta = d.metadata_ or {}
+        if str(meta.get("candidate_id")) == str(candidate_id) or d.filename.startswith(cand.full_name.replace(" ", "_")):
+            doc = d
+            break
+
+    cv_text = (doc.raw_text if doc and doc.raw_text else cand.raw_text) or ""
+    filename = doc.filename if doc else f"{cand.full_name.replace(' ', '_')}_CV.txt"
+
     return {
         "candidate_id": str(cand.id),
         "full_name": cand.full_name,
         "email": cand.email,
-        "raw_text": cand.raw_text,
+        "job_id": str(cand.job_id) if cand.job_id else None,
+        "raw_text": cv_text,
+        "filename": filename,
+        "document_id": str(doc.id) if doc else None,
+        "mime_type": doc.mime_type if doc else "text/plain",
         "skills": cand.skills,
         "priority": cand.priority,
         "years_of_experience": cand.years_of_experience,
     }
+
+
+@router.get("/candidates/{candidate_id}/cv/download")
+async def download_candidate_cv(
+    candidate_id: UUID,
+    container: Container = Depends(get_container),
+    user: dict = Depends(get_current_user),
+) -> Response:
+    from sqlalchemy import select
+    from copilot.domain.errors import NotFoundError
+    from copilot.infrastructure.db.models import DocumentORM
+
+    cand = await container.candidate_repository.get_candidate(candidate_id)
+    if not cand:
+        raise NotFoundError(f"Candidate {candidate_id} not found")
+
+    docs_res = await container.session.execute(select(DocumentORM))
+    doc = None
+    for d in docs_res.scalars().all():
+        meta = d.metadata_ or {}
+        if str(meta.get("candidate_id")) == str(candidate_id) or d.filename.startswith(cand.full_name.replace(" ", "_")):
+            doc = d
+            break
+
+    cv_text = (doc.raw_text if doc and doc.raw_text else cand.raw_text) or ""
+    filename = doc.filename if doc else f"{cand.full_name.replace(' ', '_')}_CV.txt"
+
+    return Response(
+        content=cv_text.encode("utf-8"),
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/candidates/document/by-name")

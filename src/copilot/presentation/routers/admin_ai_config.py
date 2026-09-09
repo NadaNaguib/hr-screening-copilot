@@ -16,12 +16,11 @@ router = APIRouter()
 
 AVAILABLE_MODELS = [
     "gemini-2.5-flash",
-    "gemini-2.5-pro",
+    "gemini-3.1-pro-preview",
+    "gemini-2.5-flash-lite",
+    "gemini-3-flash-preview",
     "gemini-flash-latest",
-    "gemini-flash-lite-latest",
     "gemini-pro-latest",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-8b",
 ]
 
 
@@ -105,6 +104,15 @@ async def test_ai(
                 max_tokens=256,
                 correlation_id=correlation_id,
             )
+            if response.model == "degraded" or (response.metadata and response.metadata.get("degraded")):
+                last_err = (response.metadata or {}).get("last_error") or "LLM generation failed and degraded to offline mode"
+                return {
+                    "ok": False,
+                    "model": manager.config.gemini_model,
+                    "provider": "offline-fallback",
+                    "error": f"Model '{manager.config.gemini_model}' failed: {last_err}",
+                    "cost_usd": 0.0,
+                }
             ledger = get_ledger()
             ledger.record(
                 TokenCostRecord(
