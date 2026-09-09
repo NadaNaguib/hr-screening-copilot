@@ -14,7 +14,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
     setError("")
     try {
       const res = await apiClient.post("/auth/login", { email, password })
-      setAuth(res.data.access_token, res.data.role)
+      setAuth(res.data.access_token, res.data.role, res.data.user_id)
       onLogin()
       navigate("/jobs")
     } catch (err: any) {

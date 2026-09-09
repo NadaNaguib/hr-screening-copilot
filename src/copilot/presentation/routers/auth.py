@@ -71,4 +71,21 @@ async def list_users(
     admin_user: dict = Depends(require_roles("admin")),
 ) -> list[UserORM]:
     result = await session.execute(select(UserORM))
-    return result.scalars().all()
+    return list(result.scalars().all())
+
+
+@router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    admin_user: dict = Depends(require_roles("admin")),
+) -> dict:
+    user = await session.get(UserORM, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if str(user.id) == str(admin_user.get("id")):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete currently logged in account")
+    await session.delete(user)
+    await session.commit()
+    return {"status": "deleted", "id": str(user_id)}
+
