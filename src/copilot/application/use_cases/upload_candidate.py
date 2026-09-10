@@ -41,6 +41,7 @@ def _extract_skills_fallback(text: str) -> list[str]:
 async def _extract_skills_with_llm(text: str, llm: Any, correlation_id: str = "") -> list[str]:
     """Use Gemini to extract professional skills/keywords from a CV; fallback to regex."""
     from copilot.infrastructure.config.ai_config import AIConfigManager
+    from copilot.infrastructure.providers.tiered_router import TaskTier
 
     ai_config = AIConfigManager().config
     if not llm or not ai_config.ai_enabled:
@@ -53,7 +54,8 @@ async def _extract_skills_with_llm(text: str, llm: Any, correlation_id: str = ""
         + text[:8000]
     )
     try:
-        response = await llm.generate(
+        tier_llm = llm.for_tier(TaskTier.FAST) if hasattr(llm, "for_tier") else llm
+        response = await tier_llm.generate(
             prompt=prompt,
             system_instruction=None,
             temperature=0.0,
@@ -156,6 +158,18 @@ async def upload_candidate(
     chunk_data = [(text, None, {"type": "cv", "filename": filename, "index": i}) for i, (text, _) in enumerate(chunks)]
     embeddings = await container.embedding.embed([c[0] for c in chunk_data], correlation_id=correlation_id)
     from copilot.infrastructure.db.models import DocumentORM
+    import base64
+    import os
+
+    doc_metadata = {"candidate_id": str(candidate.id)}
+    if mime_type == "application/pdf" or filename.lower().endswith(".pdf"):
+        doc_metadata["pdf_bytes_b64"] = base64.b64encode(content).decode("ascii")
+        try:
+            os.makedirs("/tmp/cv_storage", exist_ok=True)
+            with open(f"/tmp/cv_storage/{candidate.id}_{filename}", "wb") as f:
+                f.write(content)
+        except Exception:
+            pass
 
     doc = DocumentORM(
         job_id=job_id,
@@ -163,7 +177,7 @@ async def upload_candidate(
         mime_type=mime_type,
         sha256=sha256,
         raw_text=raw_text,
-        metadata_={"candidate_id": str(candidate.id)},
+        metadata_=doc_metadata,
     )
     container.session.add(doc)
     await container.session.flush()

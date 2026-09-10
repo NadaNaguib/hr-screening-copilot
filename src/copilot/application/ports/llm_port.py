@@ -32,7 +32,7 @@ class LLMPort(ABC):
         """Generate a single response."""
 
     @abstractmethod
-    async def generate_stream(
+    def generate_stream(
         self,
         prompt: str,
         system_instruction: str | None = None,

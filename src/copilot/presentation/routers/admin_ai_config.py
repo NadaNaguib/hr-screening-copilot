@@ -15,10 +15,19 @@ from copilot.presentation.dependencies import require_roles
 router = APIRouter()
 
 AVAILABLE_MODELS = [
-    "gemini-2.5-flash",
+    "gemini-3.8-flash",
+    "gemini-3.7-flash",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
     "gemini-3.1-pro-preview",
+    "gemini-3-flash",
+    "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
-    "gemini-3-flash-preview",
+    "gemini-2.5-pro",
+    "gemma-4-31b-it",
+    "gemma-4-26b-it",
     "gemini-flash-latest",
     "gemini-pro-latest",
 ]
@@ -27,6 +36,10 @@ AVAILABLE_MODELS = [
 class AIConfigUpdate(BaseModel):
     gemini_api_key: str | None = None
     gemini_model: str | None = None
+    fast_model: str | None = None
+    model_priority_queue: list[str] | None = None
+    enable_priority_fallback: bool | None = None
+    task_routing_enabled: bool | None = None
     ai_enabled: bool | None = None
     plain_rag_enabled: bool | None = None
     agentic_rag_enabled: bool | None = None
@@ -55,10 +68,21 @@ async def update_ai_config(
     if "gemini_api_key" in updates and not updates["gemini_api_key"]:
         # Empty string means keep current key; never overwrite with empty to avoid accidental wipe
         del updates["gemini_api_key"]
-    if "gemini_model" in updates and updates["gemini_model"] not in AVAILABLE_MODELS:
-        raise HTTPException(status_code=400, detail="Unknown model")
+    if "gemini_model" in updates:
+        val = str(updates["gemini_model"]).strip()
+        if not val:
+            raise HTTPException(status_code=400, detail="Model name cannot be empty")
+        updates["gemini_model"] = val
+    if "fast_model" in updates:
+        val = str(updates["fast_model"]).strip()
+        if not val:
+            raise HTTPException(status_code=400, detail="Fast model name cannot be empty")
+        updates["fast_model"] = val
     manager.update(**updates)
-    return manager.to_dict(include_key=False)
+    return {
+        **manager.to_dict(include_key=False),
+        "available_models": AVAILABLE_MODELS,
+    }
 
 
 @router.get("/admin/ai-usage")
@@ -104,8 +128,9 @@ async def test_ai(
                 max_tokens=256,
                 correlation_id=correlation_id,
             )
-            if response.model == "degraded" or (response.metadata and response.metadata.get("degraded")):
-                last_err = (response.metadata or {}).get("last_error") or "LLM generation failed and degraded to offline mode"
+            meta = response.metadata or {}
+            if response.model == "degraded" or meta.get("degraded"):
+                last_err = meta.get("last_error") or "LLM generation failed and degraded to offline mode"
                 return {
                     "ok": False,
                     "model": manager.config.gemini_model,
@@ -116,19 +141,22 @@ async def test_ai(
             ledger = get_ledger()
             ledger.record(
                 TokenCostRecord(
-                    provider=response.metadata.get("provider", "unknown"),
+                    provider=meta.get("provider", "unknown"),
                     model=response.model,
                     input_tokens=response.input_tokens,
                     output_tokens=response.output_tokens,
                     cost_usd=response.cost_usd,
                     correlation_id=correlation_id,
-                    metadata=response.metadata,
+                    metadata=meta,
                 )
             )
             return {
                 "ok": True,
                 "model": response.model,
-                "provider": response.metadata.get("provider", "unknown"),
+                "requested_model": manager.config.gemini_model,
+                "provider": meta.get("provider", "unknown"),
+                "cascaded": meta.get("cascaded", False),
+                "cascaded_from": meta.get("cascaded_from"),
                 "text": response.text[:500],
                 "input_tokens": response.input_tokens,
                 "output_tokens": response.output_tokens,

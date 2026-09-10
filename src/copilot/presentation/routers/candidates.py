@@ -163,6 +163,69 @@ async def download_candidate_cv(
     )
 
 
+@router.get("/candidates/{candidate_id}/cv/pdf")
+async def get_candidate_cv_pdf(
+    candidate_id: UUID,
+    container: Container = Depends(get_container),
+    user: dict = Depends(get_current_user),
+) -> Response:
+    import base64
+    import os
+    from sqlalchemy import select
+    from copilot.domain.errors import NotFoundError
+    from copilot.infrastructure.db.models import DocumentORM
+    from copilot.infrastructure.parsing.pdf_generator import generate_cv_pdf
+
+    cand = await container.candidate_repository.get_candidate(candidate_id)
+    if not cand:
+        raise NotFoundError(f"Candidate {candidate_id} not found")
+
+    docs_res = await container.session.execute(select(DocumentORM))
+    doc = None
+    for d in docs_res.scalars().all():
+        meta = d.metadata_ or {}
+        if str(meta.get("candidate_id")) == str(candidate_id) or d.filename.startswith(cand.full_name.replace(" ", "_")):
+            doc = d
+            break
+
+    # 1. If uploaded as a real PDF and stored in metadata
+    meta = (doc.metadata_ if doc else {}) or {}
+    if "pdf_bytes_b64" in meta:
+        pdf_bytes = base64.b64decode(meta["pdf_bytes_b64"])
+        filename = doc.filename if doc and doc.filename.endswith(".pdf") else f"{cand.full_name.replace(' ', '_')}_CV.pdf"
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'inline; filename="{filename}"'},
+        )
+
+    # 2. Check if cached on disk
+    disk_path = f"/tmp/cv_storage/{cand.id}_{cand.full_name.replace(' ', '_')}_CV.pdf"
+    if os.path.exists(disk_path):
+        with open(disk_path, "rb") as f:
+            return Response(
+                content=f.read(),
+                media_type="application/pdf",
+                headers={"Content-Disposition": f'inline; filename="{cand.full_name.replace(" ", "_")}_CV.pdf"'},
+            )
+
+    # 3. Generate authentic PDF resume using reportlab
+    cv_text = (doc.raw_text if doc and doc.raw_text else cand.raw_text) or ""
+    pdf_bytes = generate_cv_pdf(
+        full_name=cand.full_name,
+        cv_text=cv_text,
+        email=cand.email or "",
+        skills=cand.skills or [],
+        years_of_experience=cand.years_of_experience or 0.0,
+    )
+    filename = f"{cand.full_name.replace(' ', '_')}_CV.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
 @router.get("/candidates/document/by-name")
 async def get_document_by_name(
     filename: str,
