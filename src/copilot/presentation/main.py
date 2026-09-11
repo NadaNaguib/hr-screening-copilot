@@ -60,7 +60,24 @@ async def lifespan(app: FastAPI):
             import asyncio
 
             await asyncio.sleep(1.0)
+
+    # Start the SLA auto-escalation engine (triage breach -> forward to manager,
+    # decision breach -> auto-approve). Disable via SLA_SCHEDULER_ENABLED=false.
+    from copilot.infrastructure.config.settings import get_settings
+    from copilot.infrastructure.scheduler import start_scheduler, stop_scheduler
+
+    settings = get_settings()
+    if settings.sla_scheduler_enabled:
+        try:
+            start_scheduler(interval_minutes=settings.sla_scheduler_interval_minutes)
+        except Exception:  # pragma: no cover - never block app startup
+            import logging
+
+            logging.getLogger(__name__).exception("Failed to start SLA scheduler")
+
     yield
+
+    stop_scheduler()
     await close_engine()
 
 

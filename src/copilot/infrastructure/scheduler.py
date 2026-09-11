@@ -1,71 +1,66 @@
-"""APScheduler jobs for SLA breach monitoring."""
+"""APScheduler jobs for SLA breach monitoring and auto-escalation.
+
+The scheduler is a thin infrastructure driver: it opens a session, builds a
+container, and delegates to the ``auto_escalate_sla`` application use case.
+"""
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from sqlalchemy import select
 
 from copilot.infrastructure.db.session import async_session_factory
-from copilot.infrastructure.observability.correlation import get_correlation_id, set_correlation_id
+from copilot.infrastructure.di import Container
+from copilot.infrastructure.observability.correlation import set_correlation_id
+
+logger = logging.getLogger(__name__)
+
+_SCHEDULER: AsyncIOScheduler | None = None
 
 
-async def _check_sla_breaches(stage: str) -> None:
-    set_correlation_id(f"sla-{stage}-{datetime.utcnow().isoformat()}")
+async def run_sla_escalation() -> dict:
+    """Run one SLA timeout sweep against a fresh database session."""
+    from copilot.application.use_cases.auto_escalate_sla import auto_escalate_sla
+
+    set_correlation_id(f"sla-sweep-{datetime.utcnow().isoformat()}")
     async with async_session_factory() as session:
-        from copilot.infrastructure.db.models import ReviewTaskORM
-
-        now = datetime.utcnow()
-        if stage == "triage":
-            result = await session.execute(
-                select(ReviewTaskORM).where(
-                    ReviewTaskORM.status == "pending_triage",
-                    ReviewTaskORM.triage_deadline_at < now,
-                )
-            )
-        else:
-            result = await session.execute(
-                select(ReviewTaskORM).where(
-                    ReviewTaskORM.status == "pending_manager_review",
-                    ReviewTaskORM.decision_deadline_at < now,
-                )
-            )
-        for task in result.scalars().all():
-            if stage == "triage":
-                task.status = "escalated_triage"
-                task.triage_escalated_at = now
-            else:
-                task.status = "escalated_manager"
-                task.decision_escalated_at = now
-            task.audit_log.append(
-                {
-                    "action": f"escalate_{stage}",
-                    "to_status": task.status,
-                    "timestamp": now.isoformat(),
-                    "correlation_id": get_correlation_id(),
-                }
-            )
-        await session.commit()
+        container = Container.from_session(session)
+        try:
+            result = await auto_escalate_sla(container)
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            logger.exception("SLA escalation sweep failed")
+            raise
+    if result.get("forwarded") or result.get("auto_approved"):
+        logger.info("SLA sweep result: %s", result)
+    return result
 
 
-def start_scheduler() -> AsyncIOScheduler:
+def start_scheduler(interval_minutes: int = 5) -> AsyncIOScheduler:
+    """Start (or return the running) SLA escalation scheduler."""
+    global _SCHEDULER
+    if _SCHEDULER is not None and _SCHEDULER.running:
+        return _SCHEDULER
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
-        lambda: _check_sla_breaches("triage"),
+        run_sla_escalation,
         "interval",
-        minutes=5,
-        id="sla_triage_check",
-        replace_existing=True,
-        max_instances=1,
-    )
-    scheduler.add_job(
-        lambda: _check_sla_breaches("decision"),
-        "interval",
-        minutes=5,
-        id="sla_decision_check",
+        minutes=interval_minutes,
+        id="sla_escalation_sweep",
         replace_existing=True,
         max_instances=1,
     )
     scheduler.start()
+    _SCHEDULER = scheduler
     return scheduler
+
+
+def stop_scheduler() -> None:
+    """Shut the scheduler down if it is running."""
+    global _SCHEDULER
+    if _SCHEDULER is not None:
+        _SCHEDULER.shutdown(wait=False)
+        _SCHEDULER = None

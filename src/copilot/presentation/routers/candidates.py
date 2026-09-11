@@ -111,6 +111,10 @@ async def upload_candidate_endpoint(
             },
         ) from None
 
+    form_priority = form.get("priority")
+    if hasattr(form_priority, "read") or not form_priority:
+        form_priority = None
+
     return await upload_candidate(
         container=container,
         filename=filename,
@@ -118,6 +122,7 @@ async def upload_candidate_endpoint(
         mime_type=mime_type,
         job_id=resolved_job_id,
         full_name=filename,
+        priority=form_priority,
         correlation_id=get_correlation_id(),
     )
 
@@ -139,9 +144,7 @@ async def generate_candidate_probes(
         raise NotFoundError(f"Candidate {candidate_id} not found")
 
     job = (
-        await container.document_repository.get_job(candidate.job_id)
-        if candidate.job_id
-        else None
+        await container.document_repository.get_job(candidate.job_id) if candidate.job_id else None
     )
     probes = await generate_interview_probes(
         llm=container.llm,

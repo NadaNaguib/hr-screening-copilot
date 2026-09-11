@@ -10,7 +10,7 @@ from uuid import UUID
 
 from copilot.domain.candidate import Candidate, CandidateStatus
 from copilot.domain.review_task import ReviewTask
-from copilot.domain.sla_rule import Priority, resolve_sla_duration
+from copilot.domain.sla_rule import Priority, normalize_priority, resolve_sla_duration
 from copilot.infrastructure.di import Container
 from copilot.infrastructure.observability.correlation import get_correlation_id
 from copilot.infrastructure.parsing.parser import parse_document, sha256_bytes
@@ -304,11 +304,17 @@ async def upload_candidate(
     job_id: UUID | None = None,
     full_name: str = "",
     email: str = "",
-    priority: str = "MEDIUM",
+    priority: str | None = None,
     correlation_id: str = "",
 ) -> dict:
     raw_text = parse_document(filename, content, mime_type)
     sha256 = sha256_bytes(content)
+
+    # Inherit the job's default priority when the caller did not specify one.
+    job = await container.document_repository.get_job(job_id) if job_id else None
+    effective_priority = normalize_priority(
+        priority if priority is not None else (job.priority if job else None)
+    )
 
     existing = await container.candidate_repository.get_by_hash(job_id, sha256)
     if existing:
@@ -321,7 +327,7 @@ async def upload_candidate(
             await _extract_skills_with_llm(raw_text, container.llm, correlation_id)
             or existing.skills
         )
-        existing.priority = priority or existing.priority
+        existing.priority = effective_priority
         await container.candidate_repository.update_candidate(existing)
         candidate = existing
         is_new = False
@@ -334,7 +340,7 @@ async def upload_candidate(
             cv_sha256=sha256,
             years_of_experience=_extract_years(raw_text),
             skills=await _extract_skills_with_llm(raw_text, container.llm, correlation_id),
-            priority=priority,
+            priority=effective_priority,
             status=CandidateStatus.UPLOADED,
         )
         candidate = await container.candidate_repository.create_candidate(candidate)
@@ -385,10 +391,10 @@ async def upload_candidate(
     # Create review task if not exists
     task = await container.review_task_repository.get_task_by_candidate(candidate.id)
     if task is None:
-        task = ReviewTask(candidate_id=candidate.id, job_id=job_id, priority=priority)
+        task = ReviewTask(candidate_id=candidate.id, job_id=job_id, priority=effective_priority)
         # Resolve SLA deadline
         job_rule = await container.review_task_repository.get_sla_rule_for_job(job_id)
-        triage_hours, _ = resolve_sla_duration(Priority(priority.lower()), job_rule)
+        triage_hours, _ = resolve_sla_duration(Priority.from_str(effective_priority), job_rule)
         from datetime import datetime, timedelta
 
         task.triage_deadline_at = datetime.utcnow() + timedelta(hours=triage_hours)

@@ -34,7 +34,7 @@ async def triage_candidate(
     if task.status == ReviewStatus.PENDING_MANAGER_REVIEW:
         # Set decision SLA deadline
         job = await container.document_repository.get_job(task.job_id) if task.job_id else None
-        priority = Priority((job.priority if job else "MEDIUM").lower())
+        priority = Priority.from_str(job.priority if job else "MEDIUM")
         job_rule = await container.review_task_repository.get_sla_rule_for_job(task.job_id)
         _, decision_hours = resolve_sla_duration(priority, job_rule)
         task.decision_deadline_at = datetime.utcnow() + timedelta(hours=decision_hours)

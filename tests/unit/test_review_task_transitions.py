@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -90,3 +91,59 @@ def test_edit_and_approve_does_not_require_a_comment() -> None:
     task.apply_action("hiring_manager", ReviewAction.EDIT_AND_APPROVE)
     assert task.status == ReviewStatus.EDITED_AND_APPROVED
 
+
+def test_approve_freezes_sla_as_completed() -> None:
+    task = _task(ReviewStatus.PENDING_MANAGER_REVIEW)
+    task.decision_deadline_at = datetime.utcnow() + timedelta(hours=1)
+    task.apply_action("hiring_manager", ReviewAction.APPROVE)
+    assert task.sla_frozen_at is not None
+    assert task.sla_outcome == "completed_in_sla"
+    assert task.active_sla_deadline() is None
+
+
+def test_reject_after_deadline_records_breach() -> None:
+    task = _task(ReviewStatus.PENDING_MANAGER_REVIEW)
+    task.decision_deadline_at = datetime.utcnow() - timedelta(hours=1)
+    task.apply_action("hiring_manager", ReviewAction.REJECT, reason="Not a fit")
+    assert task.sla_outcome == "breached"
+    assert task.sla_frozen_at is not None
+
+
+def test_auto_forward_to_manager_on_triage_timeout() -> None:
+    task = _task(ReviewStatus.PENDING_TRIAGE)
+    assert task.auto_forward_to_manager() is True
+    assert task.status == ReviewStatus.PENDING_MANAGER_REVIEW
+    assert task.triage_escalated_at is not None
+    # The timer survives escalation so the manager window keeps counting.
+    assert task.sla_frozen_at is None
+
+
+def test_auto_approve_on_decision_timeout_freezes_sla() -> None:
+    task = _task(ReviewStatus.PENDING_MANAGER_REVIEW)
+    task.decision_deadline_at = datetime.utcnow() - timedelta(hours=1)
+    assert task.auto_approve() is True
+    assert task.status == ReviewStatus.APPROVED
+    assert task.sla_outcome == "breached"
+    assert task.sla_frozen_at is not None
+
+
+def test_auto_forward_ignored_outside_triage_phase() -> None:
+    task = _task(ReviewStatus.APPROVED)
+    assert task.auto_forward_to_manager() is False
+    assert task.status == ReviewStatus.APPROVED
+
+
+def test_triage_phase_uses_triage_deadline() -> None:
+    task = _task(ReviewStatus.PENDING_TRIAGE)
+    task.triage_deadline_at = datetime.utcnow() + timedelta(hours=2)
+    task.decision_deadline_at = datetime.utcnow() + timedelta(hours=50)
+    assert task.sla_phase() == "triage"
+    assert task.active_sla_deadline() == task.triage_deadline_at
+
+
+def test_decision_phase_uses_decision_deadline() -> None:
+    task = _task(ReviewStatus.PENDING_MANAGER_REVIEW)
+    task.triage_deadline_at = datetime.utcnow() - timedelta(hours=2)
+    task.decision_deadline_at = datetime.utcnow() + timedelta(hours=50)
+    assert task.sla_phase() == "decision"
+    assert task.active_sla_deadline() == task.decision_deadline_at

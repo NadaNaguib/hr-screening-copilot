@@ -46,6 +46,7 @@ async def get_review_queue(
     job_id: UUID | None = None,
     status: list[str] | None = None,
     search: str | None = None,
+    priority: str | None = None,
     container: Container = Depends(get_container),
     user: dict = Depends(get_current_user),
 ) -> list[dict]:
@@ -55,6 +56,7 @@ async def get_review_queue(
         job_id=job_id,
         status=status,
         search=search,
+        priority=priority,
     )
 
 

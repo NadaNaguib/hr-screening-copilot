@@ -5,7 +5,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from copilot.domain.errors import AuthorizationError
-from copilot.domain.review_task import ReviewStatus
+from copilot.domain.review_task import ReviewStatus, utc_iso
 from copilot.infrastructure.di import Container
 
 
@@ -15,6 +15,7 @@ async def query_review_queue(
     job_id: UUID | None = None,
     status: list[str] | None = None,
     search: str | None = None,
+    priority: str | None = None,
     limit: int = 100,
     offset: int = 0,
 ) -> list[dict]:
@@ -41,6 +42,7 @@ async def query_review_queue(
         job_id=job_id,
         status=status_filter,
         role=role,
+        priority=priority,
         limit=limit,
         offset=offset,
     )
@@ -66,12 +68,13 @@ async def query_review_queue(
             "job_title": job_map.get(t.job_id, "General Pool") if t.job_id else "General Pool",
             "status": t.status.value,
             "priority": t.priority,
-            "triage_deadline_at": t.triage_deadline_at.isoformat()
-            if t.triage_deadline_at
-            else None,
-            "decision_deadline_at": t.decision_deadline_at.isoformat()
-            if t.decision_deadline_at
-            else None,
+            "sla_phase": t.sla_phase(),
+            "sla_active": t.active_sla_deadline() is not None and t.sla_frozen_at is None,
+            "sla_deadline_at": utc_iso(t.active_sla_deadline()),
+            "sla_resolved_at": utc_iso(t.sla_frozen_at),
+            "sla_outcome": t.sla_outcome,
+            "triage_deadline_at": utc_iso(t.triage_deadline_at),
+            "decision_deadline_at": utc_iso(t.decision_deadline_at),
             "triage_reason": t.triage_reason,
             "manager_comment": t.manager_comment,
             "admin_override_reason": t.admin_override_reason,
@@ -81,8 +84,8 @@ async def query_review_queue(
             "interview_probes": (
                 probes_map.get(t.candidate_id, (False, []))[1] if t.candidate_id else []
             ),
-            "created_at": t.created_at.isoformat() if t.created_at else None,
-            "updated_at": t.updated_at.isoformat() if t.updated_at else None,
+            "created_at": utc_iso(t.created_at),
+            "updated_at": utc_iso(t.updated_at),
         }
         for t in tasks
     ]

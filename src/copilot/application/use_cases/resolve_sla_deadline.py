@@ -16,6 +16,6 @@ async def resolve_sla_deadline(
     stage: str,  # triage or decision
 ) -> datetime:
     job_rule = await container.review_task_repository.get_sla_rule_for_job(job_id)
-    triage_hours, decision_hours = resolve_sla_duration(Priority(priority.lower()), job_rule)
+    triage_hours, decision_hours = resolve_sla_duration(Priority.from_str(priority), job_rule)
     hours = triage_hours if stage == "triage" else decision_hours
     return datetime.utcnow() + timedelta(hours=hours)

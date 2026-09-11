@@ -11,6 +11,7 @@ from copilot.application.use_cases.ensure_job_rubric import ensure_job_rubric
 from copilot.application.use_cases.ingest_document import ingest_document
 from copilot.domain.job import Job
 from copilot.domain.rubric import CriterionWeight, Rubric, RubricCriterion
+from copilot.domain.sla_rule import normalize_priority
 from copilot.infrastructure.di import Container
 from copilot.infrastructure.observability.correlation import get_correlation_id
 from copilot.presentation.dependencies import get_container, get_current_user, require_roles
@@ -19,11 +20,11 @@ router = APIRouter()
 
 
 class JobCreate(BaseModel):
-    title: str
+    title: str = Field(min_length=1, max_length=255)
     department: str = ""
     description: str = ""
     location: str = ""
-    priority: str = "MEDIUM"
+    priority: str = Field(default="MEDIUM", min_length=1, max_length=20)
     skills: list[str] = Field(default_factory=list)
 
 
@@ -54,7 +55,7 @@ async def create_job(
         department=request.department,
         description=request.description,
         location=request.location,
-        priority=request.priority,
+        priority=normalize_priority(request.priority),
         skills=request.skills,
     )
     saved = await container.document_repository.create_job(job)

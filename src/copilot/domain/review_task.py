@@ -3,11 +3,26 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from uuid import UUID, uuid4
 
 from copilot.domain.errors import AuthorizationError, ValidationError
+
+
+def utc_iso(dt: datetime | None) -> str | None:
+    """Serialize a datetime as an explicit UTC ISO-8601 string.
+
+    SLA deadlines are persisted as *naive UTC*. Emitting a bare
+    ``"2026-09-11T12:00:00"`` makes browsers (``new Date(...)``) parse it as
+    **local** time, which silently shortened a 24h window to 21h for a UTC+3
+    client. Always attaching the UTC offset keeps the full duration intact.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC).isoformat()
 
 
 class ReviewStatus(str, Enum):
@@ -58,6 +73,25 @@ _STATUS_TRANSITIONS: dict[ReviewAction, ReviewStatus] = {
     ReviewAction.EDIT_AND_APPROVE: ReviewStatus.EDITED_AND_APPROVED,
 }
 
+# Statuses that terminate the workflow: once reached, the SLA timer freezes.
+_TERMINAL_STATUSES = {
+    ReviewStatus.APPROVED,
+    ReviewStatus.REJECTED_BY_MANAGER,
+    ReviewStatus.EDITED_AND_APPROVED,
+    ReviewStatus.REJECTED_AT_TRIAGE,
+}
+
+# The two role-based SLA phases.
+_TRIAGE_STATUSES = {ReviewStatus.PENDING_TRIAGE, ReviewStatus.ESCALATED_TRIAGE}
+_DECISION_STATUSES = {ReviewStatus.PENDING_MANAGER_REVIEW, ReviewStatus.ESCALATED_MANAGER}
+
+SLA_PHASE_TRIAGE = "triage"
+SLA_PHASE_DECISION = "decision"
+SLA_PHASE_RESOLVED = "resolved"
+
+SLA_OUTCOME_COMPLETED = "completed_in_sla"
+SLA_OUTCOME_BREACHED = "breached"
+
 _REASON_ACTIONS = {
     ReviewAction.REJECT_AT_TRIAGE,
     ReviewAction.REJECT,
@@ -88,6 +122,8 @@ class ReviewTask:
     triage_reason: str | None = None
     manager_comment: str | None = None
     admin_override_reason: str | None = None
+    sla_frozen_at: datetime | None = None
+    sla_outcome: str | None = None
     audit_log: list[dict] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
@@ -97,6 +133,83 @@ class ReviewTask:
 
     def is_action_allowed(self, role: str, action: ReviewAction) -> bool:
         return action in self.allowed_actions(role)
+
+    # -- SLA lifecycle helpers -------------------------------------------------
+
+    def is_resolved(self) -> bool:
+        """True once the task has reached a terminal status."""
+        return self.status in _TERMINAL_STATUSES
+
+    def sla_phase(self) -> str:
+        """Return the active SLA phase (triage / decision / resolved)."""
+        if self.status in _TRIAGE_STATUSES:
+            return SLA_PHASE_TRIAGE
+        if self.status in _DECISION_STATUSES:
+            return SLA_PHASE_DECISION
+        return SLA_PHASE_RESOLVED
+
+    def active_sla_deadline(self) -> datetime | None:
+        """Deadline governing the current phase (None once resolved)."""
+        phase = self.sla_phase()
+        if phase == SLA_PHASE_TRIAGE:
+            return self.triage_deadline_at
+        if phase == SLA_PHASE_DECISION:
+            return self.decision_deadline_at
+        return None
+
+    def freeze_sla(self, deadline: datetime | None = None, now: datetime | None = None) -> None:
+        """Freeze the SLA timer, recording whether it completed or breached."""
+        if self.sla_frozen_at is not None:
+            return
+        now = now or datetime.utcnow()
+        if deadline is None:
+            deadline = self.triage_deadline_at or self.decision_deadline_at
+        self.sla_frozen_at = now
+        self.sla_outcome = (
+            SLA_OUTCOME_BREACHED if deadline and now > deadline else SLA_OUTCOME_COMPLETED
+        )
+
+    def auto_forward_to_manager(self, now: datetime | None = None) -> bool:
+        """Recruiter-SLA timeout: escalate the task to the Hiring Manager."""
+        if self.status not in _TRIAGE_STATUSES:
+            return False
+        now = now or datetime.utcnow()
+        self.status = ReviewStatus.PENDING_MANAGER_REVIEW
+        self.triage_escalated_at = now
+        self.audit_log.append(
+            {
+                "actor_role": "system",
+                "actor_id": None,
+                "action": "auto_forward_to_manager",
+                "reason": "Recruiter triage SLA expired",
+                "to_status": self.status.value,
+                "timestamp": now.isoformat(),
+            }
+        )
+        self.updated_at = now
+        return True
+
+    def auto_approve(self, now: datetime | None = None) -> bool:
+        """Manager-SLA timeout: auto-approve the task and freeze the timer."""
+        if self.status not in _DECISION_STATUSES:
+            return False
+        now = now or datetime.utcnow()
+        deadline = self.decision_deadline_at
+        self.status = ReviewStatus.APPROVED
+        self.decision_escalated_at = now
+        self.freeze_sla(deadline=deadline, now=now)
+        self.audit_log.append(
+            {
+                "actor_role": "system",
+                "actor_id": None,
+                "action": "auto_approve",
+                "reason": "Manager decision SLA expired",
+                "to_status": self.status.value,
+                "timestamp": now.isoformat(),
+            }
+        )
+        self.updated_at = now
+        return True
 
     def apply_action(
         self,
@@ -109,6 +222,9 @@ class ReviewTask:
             raise AuthorizationError(
                 f"Action '{action.value}' not allowed for role '{role}' in status '{self.status.value}'"
             )
+        # Capture the governing deadline BEFORE the status changes so the timer can
+        # be frozen with the correct completed-vs-breached verdict.
+        active_deadline = self.active_sla_deadline()
         if action == ReviewAction.ADMIN_OVERRIDE:
             if not reason:
                 raise ValidationError("Admin override requires a mandatory reason")
@@ -135,6 +251,9 @@ class ReviewTask:
                 "timestamp": datetime.utcnow().isoformat(),
             }
         )
+        # A definitive action resolves the task: stop the SLA countdown.
+        if self.status in _TERMINAL_STATUSES:
+            self.freeze_sla(deadline=active_deadline)
         self.updated_at = datetime.utcnow()
 
     def escalate_triage(self) -> None:

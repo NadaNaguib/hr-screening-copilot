@@ -66,8 +66,12 @@ services:
     ports:
       - "3000:80"
     volumes:
+      # NOTE: Only nginx.conf is bind-mounted. `frontend/dist/` is intentionally
+      # NOT mounted — it is gitignored, so a host copy is stale after `git pull`
+      # and would shadow the assets built into this image by the Dockerfile.
+      # Serving the image build guarantees `docker compose up --build` reflects
+      # the current frontend source.
       - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./frontend/dist:/usr/share/nginx/html:ro
     depends_on:
       - api
     restart: unless-stopped
