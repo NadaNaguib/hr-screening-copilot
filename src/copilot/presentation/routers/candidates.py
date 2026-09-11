@@ -144,9 +144,7 @@ async def generate_candidate_probes(
         raise NotFoundError(f"Candidate {candidate_id} not found")
 
     job = (
-        await container.document_repository.get_job(candidate.job_id)
-        if candidate.job_id
-        else None
+        await container.document_repository.get_job(candidate.job_id) if candidate.job_id else None
     )
     probes = await generate_interview_probes(
         llm=container.llm,

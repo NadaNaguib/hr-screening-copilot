@@ -39,9 +39,7 @@ class Settings(BaseSettings):
 
     # SLA auto-escalation engine
     sla_scheduler_enabled: bool = Field(default=True, alias="SLA_SCHEDULER_ENABLED")
-    sla_scheduler_interval_minutes: int = Field(
-        default=5, alias="SLA_SCHEDULER_INTERVAL_MINUTES"
-    )
+    sla_scheduler_interval_minutes: int = Field(default=5, alias="SLA_SCHEDULER_INTERVAL_MINUTES")
 
     # Paths
     project_root: Path = Field(default_factory=lambda: Path(__file__).resolve().parents[3])

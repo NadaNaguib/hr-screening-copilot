@@ -25,7 +25,9 @@ def upgrade() -> None:
     )
     op.add_column(
         "candidates",
-        sa.Column("probes_generated", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column(
+            "probes_generated", sa.Boolean(), nullable=False, server_default=sa.text("false")
+        ),
     )
 
 

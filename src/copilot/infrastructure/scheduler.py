@@ -64,4 +64,3 @@ def stop_scheduler() -> None:
     if _SCHEDULER is not None:
         _SCHEDULER.shutdown(wait=False)
         _SCHEDULER = None
-

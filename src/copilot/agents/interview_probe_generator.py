@@ -116,11 +116,7 @@ def _extract_probe_array(raw: str) -> list[Any] | None:
         parts = text.split("```")
         if len(parts) >= 2:
             fenced = parts[1]
-            text = (
-                fenced.replace("json", "", 1).strip()
-                if fenced[:4].lower() == "json"
-                else fenced
-            )
+            text = fenced.replace("json", "", 1).strip() if fenced[:4].lower() == "json" else fenced
     start = text.find("[")
     end = text.rfind("]")
     if start == -1 or end == -1 or end <= start:
@@ -236,9 +232,7 @@ async def generate_interview_probes(
                 max_tokens=768,
                 correlation_id=correlation_id,
             )
-            probes = _coerce_probes(
-                _extract_probe_array(getattr(response, "text", "") or "")
-            )
+            probes = _coerce_probes(_extract_probe_array(getattr(response, "text", "") or ""))
             if len(probes) >= MIN_PROBES:
                 return probes[:MAX_PROBES]
         except Exception:  # noqa: BLE001 - never break the calling workflow

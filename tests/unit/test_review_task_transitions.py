@@ -147,4 +147,3 @@ def test_decision_phase_uses_decision_deadline() -> None:
     task.decision_deadline_at = datetime.utcnow() + timedelta(hours=50)
     assert task.sla_phase() == "decision"
     assert task.active_sla_deadline() == task.decision_deadline_at
-

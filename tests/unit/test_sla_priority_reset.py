@@ -112,7 +112,9 @@ async def test_priority_change_does_not_resurrect_resolved_timer() -> None:
     task.sla_outcome = "completed_in_sla"
     candidate = Candidate(id=candidate_id, full_name="Alex", priority="LOW")
 
-    container = _FakeContainer(_FakeReviewTaskRepo(task), _FakeCandidateRepo(candidate), _FakeAudit())
+    container = _FakeContainer(
+        _FakeReviewTaskRepo(task), _FakeCandidateRepo(candidate), _FakeAudit()
+    )
 
     result = await update_task_priority(
         container=container,
