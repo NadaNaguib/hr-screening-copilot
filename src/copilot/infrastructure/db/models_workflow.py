@@ -43,6 +43,7 @@ class ReviewTaskORM(Base):
     admin_override_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     sla_frozen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     sla_outcome: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    probes_edited: Mapped[bool] = mapped_column(default=False, nullable=False)
     audit_log: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

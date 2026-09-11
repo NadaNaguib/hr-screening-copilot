@@ -124,6 +124,9 @@ class ReviewTask:
     admin_override_reason: str | None = None
     sla_frozen_at: datetime | None = None
     sla_outcome: str | None = None
+    # Set when a hiring manager edits this candidate's interview probes so a
+    # subsequent plain approval is recorded as ``edited_and_approved``.
+    probes_edited: bool = False
     audit_log: list[dict] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
@@ -225,6 +228,10 @@ class ReviewTask:
         # Capture the governing deadline BEFORE the status changes so the timer can
         # be frozen with the correct completed-vs-breached verdict.
         active_deadline = self.active_sla_deadline()
+        # A manager who edited this candidate's interview probes is registering an
+        # "edited & approved" decision — promote a plain approval to reflect that.
+        if action == ReviewAction.APPROVE and self.probes_edited:
+            action = ReviewAction.EDIT_AND_APPROVE
         if action == ReviewAction.ADMIN_OVERRIDE:
             if not reason:
                 raise ValidationError("Admin override requires a mandatory reason")

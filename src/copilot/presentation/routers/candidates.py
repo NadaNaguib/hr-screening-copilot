@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 
 from copilot.agents.interview_probe_generator import generate_interview_probes
+from copilot.application.use_cases.update_candidate_probes import update_candidate_probes
 from copilot.application.use_cases.upload_candidate import upload_candidate
 from copilot.domain.errors import NotFoundError
 from copilot.infrastructure.di import Container
@@ -178,7 +179,7 @@ class InterviewProbesUpdate(BaseModel):
 
 
 @router.put("/candidates/{candidate_id}/probes")
-async def update_candidate_probes(
+async def update_candidate_probes_endpoint(
     candidate_id: UUID,
     payload: InterviewProbesUpdate,
     container: Container = Depends(get_container),
@@ -189,36 +190,17 @@ async def update_candidate_probes(
 
     Editing probes never requires a decision comment — only *rejecting* a
     candidate does. Empty questions are dropped so a saved set is always clean.
+    When a manager changes the probes, the candidate's review task is flagged so
+    the following approval is recorded as ``edited_and_approved``.
     """
-    candidate = await container.candidate_repository.get_candidate(candidate_id)
-    if not candidate:
-        raise NotFoundError(f"Candidate {candidate_id} not found")
-
-    cleaned: list[dict] = []
-    for item in payload.interview_probes:
-        question = str(item.get("question", "")).strip()
-        if not question:
-            continue
-        category = str(item.get("category", "technical")).strip() or "technical"
-        cleaned.append({"category": category, "question": question})
-
-    candidate.set_interview_probes(cleaned)
-    await container.candidate_repository.update_candidate(candidate)
-
-    await container.audit.log(
-        action="update_interview_probes",
-        target_type="candidate",
-        target_id=str(candidate_id),
+    return await update_candidate_probes(
+        container=container,
+        candidate_id=candidate_id,
+        role=user["role"],
+        probes=payload.interview_probes,
         actor_id=user["id"],
-        actor_role=user["role"],
-        details={"probe_count": len(cleaned)},
         correlation_id=get_correlation_id(),
     )
-    return {
-        "candidate_id": str(candidate_id),
-        "probes_generated": candidate.probes_generated,
-        "interview_probes": cleaned,
-    }
 
 
 @router.get("/candidates")

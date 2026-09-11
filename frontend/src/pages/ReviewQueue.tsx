@@ -404,13 +404,8 @@ export function ReviewQueue() {
       </div>
 
       {/* Combined control bar: bulk actions (left) + filters (right) */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 bg-white rounded-xl border border-surface-border shadow-xs p-3">
-        {isAdmin() ? (
-          <span className="text-xs text-surface-muted italic">
-            Read-only review access — admins can view interview probes but cannot triage,
-            decide, or run bulk actions.
-          </span>
-        ) : (
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3 bg-white rounded-xl border border-surface-border shadow-xs p-3">
+        {!isAdmin() && (
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={bulkAction}
@@ -443,7 +438,11 @@ export function ReviewQueue() {
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
+        <div
+          className={`flex flex-wrap items-center gap-2 ${
+            isAdmin() ? "w-full lg:justify-end" : "lg:ml-auto"
+          }`}
+        >
           <select
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value)}
