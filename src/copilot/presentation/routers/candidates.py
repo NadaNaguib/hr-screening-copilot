@@ -172,6 +172,7 @@ async def get_candidate_cv(
     user: dict = Depends(get_current_user),
 ) -> dict:
     from sqlalchemy import select
+
     from copilot.domain.errors import NotFoundError
     from copilot.infrastructure.db.models import DocumentORM
 
@@ -212,6 +213,7 @@ async def download_candidate_cv(
     user: dict = Depends(get_current_user),
 ) -> Response:
     from sqlalchemy import select
+
     from copilot.domain.errors import NotFoundError
     from copilot.infrastructure.db.models import DocumentORM
 
@@ -245,7 +247,9 @@ async def get_candidate_cv_pdf(
 ) -> Response:
     import base64
     import os
+
     from sqlalchemy import select
+
     from copilot.domain.errors import NotFoundError
     from copilot.infrastructure.db.models import DocumentORM
     from copilot.infrastructure.parsing.pdf_generator import generate_cv_pdf
@@ -275,8 +279,8 @@ async def get_candidate_cv_pdf(
 
     # 2. Check if cached on disk
     disk_path = f"/tmp/cv_storage/{cand.id}_{cand.full_name.replace(' ', '_')}_CV.pdf"
-    if os.path.exists(disk_path):
-        with open(disk_path, "rb") as f:
+    if os.path.exists(disk_path):  # noqa: ASYNC230, ASYNC240
+        with open(disk_path, "rb") as f:  # noqa: ASYNC230, ASYNC240
             return Response(
                 content=f.read(),
                 media_type="application/pdf",
@@ -307,6 +311,7 @@ async def get_document_by_name(
     user: dict = Depends(get_current_user),
 ) -> dict:
     from sqlalchemy import select
+
     from copilot.infrastructure.db.models import DocumentORM
 
     stmt = select(DocumentORM).where(DocumentORM.filename.ilike(f"%{filename}%")).limit(1)

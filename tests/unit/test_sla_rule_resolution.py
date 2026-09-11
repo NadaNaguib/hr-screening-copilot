@@ -3,8 +3,6 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-import pytest
-
 from copilot.domain.job import Job
 from copilot.domain.sla_rule import Priority, SLARule, resolve_sla_duration
 

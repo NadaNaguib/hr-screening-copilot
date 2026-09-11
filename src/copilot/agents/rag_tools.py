@@ -18,14 +18,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from copilot.application.ports.embedding_port import EmbeddingPort
 from copilot.infrastructure.db.models import (
     CandidateORM,
-    ChunkORM,
     DocumentORM,
     JobORM,
     ReviewTaskORM,
     RubricCriterionORM,
     RubricORM,
 )
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Scope 1: Candidate Scope
@@ -98,7 +96,7 @@ async def lookup_candidate(
         "found": False,
         "query": cleaned,
         "message": f"Candidate '{cleaned}' was not found in the talent pool records.",
-        "available_candidates": sorted(list(set(avail))),
+        "available_candidates": sorted(set(avail)),
     }
 
 

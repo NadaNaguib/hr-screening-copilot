@@ -1,7 +1,7 @@
 """Admin AI/RAG settings and usage endpoints."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,7 +9,11 @@ from pydantic import BaseModel, Field
 
 from copilot.infrastructure.config.ai_config import AIConfigManager
 from copilot.infrastructure.observability.correlation import get_correlation_id
-from copilot.infrastructure.observability.token_cost import FailureRecord, TokenCostRecord, get_ledger
+from copilot.infrastructure.observability.token_cost import (
+    FailureRecord,
+    TokenCostRecord,
+    get_ledger,
+)
 from copilot.presentation.dependencies import require_roles
 
 router = APIRouter()
@@ -110,8 +114,8 @@ async def test_ai(
     request: LLMTestRequest,
     admin_user: dict = Depends(require_roles("admin")),
 ) -> dict[str, Any]:
-    from copilot.infrastructure.di import Container
     from copilot.infrastructure.db.session import async_session_factory
+    from copilot.infrastructure.di import Container
 
     manager = AIConfigManager()
     if not manager.config.ai_enabled:
@@ -170,7 +174,7 @@ async def test_ai(
                     model=manager.config.gemini_model,
                     error=str(exc),
                     correlation_id=correlation_id,
-                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    timestamp=datetime.now(UTC).isoformat(),
                 )
             )
             return {"ok": False, "error": str(exc), "model": manager.config.gemini_model}

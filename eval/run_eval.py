@@ -19,8 +19,8 @@ from __future__ import annotations
 import json
 import os
 import time
-import urllib.request
 import urllib.parse
+import urllib.request
 from pathlib import Path
 
 GOLDEN_PATH = Path(__file__).with_name("golden_set.jsonl")
@@ -168,7 +168,7 @@ def _write_report(report: dict) -> None:
         lines.append(f"- {status} **{r['question']}** — score {r['score']:.2f}\n")
         lines.append(f"  - Expected terms: {', '.join(r['expected'])}\n")
         if r["score"] < 0.5:
-            lines.append(f"  - ⚠️ FAILURE: answer did not contain all expected terms\n")
+            lines.append("  - ⚠️ FAILURE: answer did not contain all expected terms\n")
             lines.append(f"  - Got: `{r['answer'][:200]}`\n")
 
     lines.append("\n## Adversarial Test Results\n\n")
@@ -178,7 +178,7 @@ def _write_report(report: dict) -> None:
         lines.append(f"- {status} **[{r['adversarial_type']}]** {r['question']} — score {r['score']:.2f}\n")
         lines.append(f"  - Expected refusal terms: {', '.join(r['expected'])}\n")
         if r["score"] < 0.5:
-            lines.append(f"  - ⚠️ SECURITY FAILURE: system did not refuse appropriately\n")
+            lines.append("  - ⚠️ SECURITY FAILURE: system did not refuse appropriately\n")
             lines.append(f"  - Got: `{r['answer'][:200]}`\n")
 
     lines.append("\n## Failure Analysis\n\n")
@@ -207,7 +207,7 @@ def main() -> None:
     print("Logging in...")
     token = _login()
     if token:
-        print(f"Logged in successfully.\n")
+        print("Logged in successfully.\n")
     else:
         print("Login failed — running in offline mode (placeholder answers).\n")
 

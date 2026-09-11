@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import os
 from collections.abc import AsyncGenerator
-from datetime import datetime
 from uuid import uuid4
 
 import pytest_asyncio
@@ -16,8 +15,6 @@ from copilot.infrastructure.db.models import (
     CandidateORM,
     JobORM,
     ReviewTaskORM,
-    SLARuleORM,
-    UserORM,
 )
 
 TEST_DATABASE_URL = os.environ.get(

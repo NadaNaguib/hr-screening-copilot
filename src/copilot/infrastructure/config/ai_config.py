@@ -11,7 +11,6 @@ from typing import Any
 
 from copilot.infrastructure.config.settings import get_settings
 
-
 DEFAULT_PRIORITY_QUEUE = [
     "gemini-3.8-flash",
     "gemini-2.5-flash",

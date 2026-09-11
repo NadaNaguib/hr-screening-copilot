@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import json
 import random
-import sys
 from pathlib import Path
 
 FIRST_NAMES = ["Alice", "Bob", "Carol", "David", "Eva", "Frank", "Grace", "Henry", "Irene", "Jack"]
@@ -33,7 +32,7 @@ def _generate_cv(index: int) -> dict:
     role = random.choice(ROLES)
     years = random.randint(2, 12)
     skill_count = random.randint(4, 8)
-    skills = random.sample(SKILL_POOL, skill_count) if "SKILL_POOL" in globals() else random.sample(SKILLS_POOL, skill_count)
+    skills = random.sample(SKILLS_POOL, skill_count)
     paragraphs = [
         f"{name} is a {role} with {years} years of experience.",
         f"Core competencies include {', '.join(skills[:4])} and {skills[4] if len(skills) > 4 else 'problem solving'}.",

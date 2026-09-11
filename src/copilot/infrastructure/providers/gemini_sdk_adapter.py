@@ -6,7 +6,6 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from copilot.application.ports.llm_port import LLMPort, LLMResponse
-from copilot.infrastructure.config.settings import get_settings
 
 
 class GeminiSdkAdapter(LLMPort):

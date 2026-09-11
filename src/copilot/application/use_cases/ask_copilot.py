@@ -208,10 +208,7 @@ async def ask_copilot(
         rows = []
         for row in result.mappings().all():
             skills = row["skills"] or []
-            if isinstance(skills, list):
-                skills_str = ", ".join(skills)
-            else:
-                skills_str = str(skills)
+            skills_str = ", ".join(skills) if isinstance(skills, list) else str(skills)
             rows.append({
                 "id": str(row["id"]),
                 "chunk_id": str(row["id"]),
@@ -261,10 +258,7 @@ async def ask_copilot(
         rows = []
         for row in result.mappings().all():
             keywords = row["keywords"] or []
-            if isinstance(keywords, list):
-                kw_str = ", ".join(keywords)
-            else:
-                kw_str = str(keywords)
+            kw_str = ", ".join(keywords) if isinstance(keywords, list) else str(keywords)
             rows.append({
                 "id": str(row["id"]),
                 "chunk_id": str(row["id"]),

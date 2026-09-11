@@ -3,10 +3,8 @@ from __future__ import annotations
 
 import hashlib
 import os
-from typing import Any
 
 from copilot.application.ports.embedding_port import EmbeddingPort
-from copilot.infrastructure.config.settings import get_settings
 
 DIMENSIONS = 768
 
@@ -45,6 +43,7 @@ class GeminiEmbeddingAdapter(EmbeddingPort):
 
     async def embed(self, texts: list[str], correlation_id: str = "") -> list[list[float]]:
         import asyncio
+
         from copilot.infrastructure.config.ai_config import AIConfigManager
 
         ai_config = AIConfigManager().config

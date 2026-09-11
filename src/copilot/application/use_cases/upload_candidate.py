@@ -274,16 +274,17 @@ async def upload_candidate(
     chunks = _chunk_text(raw_text)
     chunk_data = [(text, None, {"type": "cv", "filename": filename, "index": i}) for i, (text, _) in enumerate(chunks)]
     embeddings = await container.embedding.embed([c[0] for c in chunk_data], correlation_id=correlation_id)
-    from copilot.infrastructure.db.models import DocumentORM
     import base64
     import os
+
+    from copilot.infrastructure.db.models import DocumentORM
 
     doc_metadata = {"candidate_id": str(candidate.id)}
     if mime_type == "application/pdf" or filename.lower().endswith(".pdf"):
         doc_metadata["pdf_bytes_b64"] = base64.b64encode(content).decode("ascii")
         try:
             os.makedirs("/tmp/cv_storage", exist_ok=True)
-            with open(f"/tmp/cv_storage/{candidate.id}_{filename}", "wb") as f:
+            with open(f"/tmp/cv_storage/{candidate.id}_{filename}", "wb") as f:  # noqa: ASYNC230, ASYNC240
                 f.write(content)
         except Exception:
             pass

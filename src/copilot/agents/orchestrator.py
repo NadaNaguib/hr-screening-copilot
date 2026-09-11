@@ -1,7 +1,6 @@
 """LangGraph Agentic RAG orchestrator with multi-scope tool execution and strict candidate scoping."""
 from __future__ import annotations
 
-import json
 import logging
 import re
 from collections.abc import AsyncIterator
@@ -295,7 +294,7 @@ def _build_agentic_rag_graph(llm: LLMPort):
                 "agent": "job_requisition_tool",
                 "scope": "job",
                 "status": "done",
-                "action": f"Retrieved job specifications and rubric criteria",
+                "action": "Retrieved job specifications and rubric criteria",
                 "count": len(collected_evidence),
             })
 

@@ -6,7 +6,7 @@ import hashlib
 import uuid
 from typing import Any
 
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from copilot.infrastructure.config.settings import get_settings

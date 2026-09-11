@@ -4,7 +4,7 @@ from __future__ import annotations
 from uuid import uuid4
 
 import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 from copilot.infrastructure.auth.service import create_access_token, hash_password
 from copilot.infrastructure.db.models import UserORM

@@ -8,7 +8,6 @@ from typing import Any
 import httpx
 
 from copilot.application.ports.llm_port import LLMPort, LLMResponse
-from copilot.infrastructure.config.settings import get_settings
 
 
 class GeminiRestAdapter(LLMPort):

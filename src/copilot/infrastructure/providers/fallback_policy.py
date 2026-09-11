@@ -4,8 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 
 from copilot.application.ports.llm_port import LLMPort, LLMResponse
 from copilot.infrastructure.providers.tiered_router import TaskTier
@@ -52,7 +51,11 @@ class FallbackLLMProvider(LLMPort):
         correlation_id: str = "",
     ) -> LLMResponse:
         from copilot.infrastructure.config.ai_config import AIConfigManager
-        from copilot.infrastructure.observability.token_cost import FailureRecord, TokenCostRecord, get_ledger
+        from copilot.infrastructure.observability.token_cost import (
+            FailureRecord,
+            TokenCostRecord,
+            get_ledger,
+        )
         from copilot.infrastructure.providers.gemini_rest_adapter import GeminiRestAdapter
 
         ai_config = AIConfigManager().config
@@ -188,7 +191,7 @@ class FallbackLLMProvider(LLMPort):
                 model=preferred_model,
                 error=str(last_error) if last_error else "unknown",
                 correlation_id=correlation_id,
-                timestamp=datetime.now(timezone.utc).isoformat(),
+                timestamp=datetime.now(UTC).isoformat(),
             )
         )
         return LLMResponse(

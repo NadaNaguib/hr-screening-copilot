@@ -1,9 +1,10 @@
 """Generate professional, styled PDF resumes using ReportLab."""
 from __future__ import annotations
 
-from io import BytesIO
 import re
+from io import BytesIO
 from typing import Any
+
 from reportlab.lib.colors import HexColor
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
