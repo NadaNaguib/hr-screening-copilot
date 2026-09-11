@@ -2,13 +2,32 @@
 
 from __future__ import annotations
 
+import asyncio
+import re
 from collections.abc import AsyncIterator
 from typing import Any
 from uuid import UUID
 
 from copilot.agents.orchestrator import LangGraphOrchestrator
+from copilot.infrastructure.config.settings import get_settings
 from copilot.infrastructure.di import Container
 from copilot.infrastructure.observability.correlation import get_correlation_id
+
+# Delay between individually streamed answer tokens (SSE). Set to 0 in tests.
+STREAM_TOKEN_DELAY_SECONDS = 0.012
+
+
+def _tokenize(text: str) -> list[str]:
+    """Split text into word-with-trailing-whitespace tokens for SSE streaming."""
+    return re.findall(r"\S+\s*", text) if text else []
+
+
+async def _stream_text(text: str) -> AsyncIterator[str]:
+    """Yield ``text`` word-by-word so the Chat UI renders progressively (FR-6)."""
+    for token in _tokenize(text):
+        yield token
+        if STREAM_TOKEN_DELAY_SECONDS:
+            await asyncio.sleep(STREAM_TOKEN_DELAY_SECONDS)
 
 
 def check_query_safety_and_scope(q: str) -> str | None:
@@ -321,7 +340,16 @@ async def ask_copilot(
 
     # ─── Run Agentic RAG or plain RAG ─────────────────────────────────────────
 
-    if ai_config.agentic_rag_enabled:
+    # FR-5: SIMULATE_AGENT_FAILURE forces the system onto the Plain RAG path so the
+    # degrade behaviour can be demonstrated end-to-end without breaking the LLM.
+    force_degraded = get_settings().simulate_agent_failure
+    degradation_reason = (
+        "simulate_agent_failure"
+        if force_degraded
+        else ("agentic_rag_disabled" if not ai_config.agentic_rag_enabled else None)
+    )
+
+    if ai_config.agentic_rag_enabled and not force_degraded:
         orchestrator = LangGraphOrchestrator(container.llm)
         chunk_received = False
         async for event in orchestrator.ask(
@@ -376,7 +404,18 @@ async def ask_copilot(
                 )
                 yield {"type": "done", "data": done_data, "citations": citations_final}
     else:
-        # Plain RAG path
+        # ─── Plain RAG (degraded) path ────────────────────────────────────────
+        # Emit an explicit degradation status so the Chat UI renders the
+        # "[Mode: Plain RAG (Degraded)]" badge instead of the agent steps.
+        yield {
+            "type": "agent_event",
+            "data": {
+                "agent": "orchestrator",
+                "status": "degraded",
+                "reason": degradation_reason or "plain_rag",
+            },
+        }
+
         evidence = await container.hybrid_search.search(question, job_id=job_id, top_k=5)
         context = "\n\n".join(
             f'[{i + 1}] Document: {e.source_document} | Page: {e.page_number or 1}\nQuote: "{e.quote}"'
@@ -408,5 +447,15 @@ async def ask_copilot(
             if response.text.strip()
             else f"Based on talent screening records, here is relevant evidence for: '{question}'."
         )
-        yield {"type": "answer_chunk", "data": ans, "citations": citations}
-        yield {"type": "done", "data": ans}
+        # Token-level streaming (FR-6): render the answer progressively.
+        async for token in _stream_text(ans):
+            yield {"type": "answer_chunk", "data": token, "citations": citations}
+        yield {
+            "type": "done",
+            "data": {
+                "degraded": True,
+                "mode": "plain_rag",
+                "reason": degradation_reason or "plain_rag",
+            },
+            "citations": citations,
+        }

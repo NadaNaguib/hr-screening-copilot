@@ -19,6 +19,7 @@ import {
   Copy,
   X,
   ExternalLink,
+  ShieldAlert,
 } from "lucide-react"
 import { createSSEConnection, SSEStatus } from "../lib/sse"
 import { CvViewerModal } from "../components/CvViewerModal"
@@ -41,6 +42,8 @@ export interface ChatMessage {
   content: string
   citations?: Citation[]
   timestamp: string
+  /** Which RAG mode produced this answer (drives the degraded banner). */
+  mode?: "agentic" | "plain_rag"
 }
 
 export interface ChatSession {
@@ -217,8 +220,25 @@ export function CopilotChat() {
 
     let accumulatedAnswer = ""
     let accumulatedCitations: Citation[] = []
+    let responseMode: "agentic" | "plain_rag" = "agentic"
     setAgentTrace([])
     setActiveStatus("")
+
+    // Patch the in-flight assistant message as tokens / status events arrive.
+    const patchAssistant = (patch: Partial<ChatMessage>) => {
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === currentSessionId
+            ? {
+                ...s,
+                messages: s.messages.map((m) =>
+                  m.id === assistantPlaceholderId ? { ...m, ...patch } : m
+                ),
+              }
+            : s
+        )
+      )
+    }
 
     const cleanup = createSSEConnection({
       url: `${API_BASE}/chat`,
@@ -230,7 +250,9 @@ export function CopilotChat() {
           const agentName = evData.agent || ""
           const agentStatus = evData.status || "done"
           if (agentName) {
-            setActiveStatus(agentName.replace(/_/g, ' '))
+            setActiveStatus(
+              agentStatus === "degraded" ? "Plain RAG (degraded)" : agentName.replace(/_/g, ' ')
+            )
             setAgentTrace(prev => {
               const existing = prev.findIndex(t => t.agent === agentName)
               if (existing >= 0) {
@@ -241,6 +263,11 @@ export function CopilotChat() {
               return [...prev, {agent: agentName, status: agentStatus}]
             })
           }
+          // A "degraded" status means the answer is coming from the Plain RAG path.
+          if (agentStatus === "degraded") {
+            responseMode = "plain_rag"
+            patchAssistant({ mode: "plain_rag" })
+          }
         } else if (event.type === "answer_chunk") {
           const chunk = typeof event.data === "string" ? event.data : ""
           accumulatedAnswer += chunk
@@ -250,25 +277,16 @@ export function CopilotChat() {
             accumulatedCitations = cites
           }
 
-          setSessions((prev) =>
-            prev.map((s) =>
-              s.id === currentSessionId
-                ? {
-                    ...s,
-                    messages: s.messages.map((m) =>
-                      m.id === assistantPlaceholderId
-                        ? {
-                            ...m,
-                            content: accumulatedAnswer,
-                            citations: accumulatedCitations,
-                          }
-                        : m
-                    ),
-                  }
-                : s
-            )
-          )
+          patchAssistant({
+            content: accumulatedAnswer,
+            citations: accumulatedCitations,
+            mode: responseMode,
+          })
         } else if (event.type === "done" || event.event === "done") {
+          if (event.data?.degraded) {
+            responseMode = "plain_rag"
+            patchAssistant({ mode: "plain_rag" })
+          }
           setLoading(false)
           setStatus("closed")
           setActiveStatus("")
@@ -448,11 +466,21 @@ export function CopilotChat() {
                       }`}
                     >
                       <div>
+                        {m.mode === "plain_rag" && (
+                          <div className="mb-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-300">
+                            <ShieldAlert className="w-3 h-3" /> Mode: Plain RAG (Degraded)
+                          </div>
+                        )}
                         {m.content ? (
                           renderInteractiveContent(m.content, m.citations)
                         ) : (
                           <div className="flex items-center gap-2 text-surface-muted text-xs italic">
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Retrieving context & synthesizing response…
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            {m.mode === "plain_rag"
+                              ? "Plain RAG (degraded) — retrieving context…"
+                              : activeStatus
+                              ? `Agentic RAG ▶ ${activeStatus}…`
+                              : "Initializing agentic pipeline…"}
                           </div>
                         )}
                       </div>
@@ -463,7 +491,7 @@ export function CopilotChat() {
                           <div className="text-xs font-semibold text-purple-900 flex items-center justify-between mb-2">
                             <span className="flex items-center gap-1.5">
                               <BookOpen className="w-3.5 h-3.5 text-purple-600" />
-                              Agentic RAG Sources ({m.citations.length})
+                              {m.mode === "plain_rag" ? "Plain RAG Sources" : "Agentic RAG Sources"} ({m.citations.length})
                             </span>
                             <span className="text-[10px] text-surface-muted">
                               Multi-scope retrieval · Click to inspect

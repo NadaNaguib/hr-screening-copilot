@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import logging
 import re
 from collections.abc import AsyncIterator
@@ -15,10 +17,70 @@ from copilot.agents import rag_tools
 from copilot.application.ports.embedding_port import EmbeddingPort
 from copilot.application.ports.llm_port import LLMPort
 from copilot.application.ports.orchestrator_port import OrchestratorPort
+from copilot.domain.errors import OrchestratorError
 from copilot.infrastructure.config.settings import get_settings
 from copilot.infrastructure.observability.token_cost import TokenCostRecord, get_ledger
 
 logger = logging.getLogger(__name__)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Resiliency Controls (FR-5)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Hard execution bound: the graph may not take more steps than this before the
+# breaker trips. It is also handed to LangGraph as ``recursion_limit`` so the
+# engine itself refuses to run past this many supersteps.
+MAX_ITERATIONS = 10
+
+# Wall-clock budget for a single node/step execution.
+STEP_TIMEOUT_SECONDS = 30.0
+
+# Delay between individually streamed answer tokens (SSE). Set to 0 in tests.
+STREAM_TOKEN_DELAY_SECONDS = 0.012
+
+
+def _tokenize_for_stream(text: str) -> list[str]:
+    """Split text into word-with-trailing-whitespace tokens for SSE streaming."""
+    return re.findall(r"\S+\s*", text) if text else []
+
+
+async def _stream_tokens(text: str) -> AsyncIterator[str]:
+    """Yield ``text`` word-by-word, pausing briefly so the UI paints progressively."""
+    for token in _tokenize_for_stream(text):
+        yield token
+        if STREAM_TOKEN_DELAY_SECONDS:
+            await asyncio.sleep(STREAM_TOKEN_DELAY_SECONDS)
+
+
+def _guard_step(name: str, node_fn: Any) -> Any:
+    """Wrap a graph node with a per-step timeout and the max-iteration breaker.
+
+    The breaker is evaluated *before* the step runs so execution can never exceed
+    ``MAX_ITERATIONS`` transitions; the timeout bounds each individual step. Both
+    raise :class:`OrchestratorError`, which the chat entry point converts into a
+    graceful Plain-RAG degradation.
+    """
+
+    async def _wrapped(state: AgenticRAGState) -> dict[str, Any]:
+        iteration = int(state.get("iteration_count") or 0) + 1
+        if iteration > MAX_ITERATIONS:
+            raise OrchestratorError(
+                f"Max iterations ({MAX_ITERATIONS}) exceeded before step '{name}'"
+            )
+        stepped_state: AgenticRAGState = {**state, "iteration_count": iteration}
+        try:
+            result = await asyncio.wait_for(node_fn(stepped_state), timeout=STEP_TIMEOUT_SECONDS)
+        except TimeoutError as exc:  # asyncio.TimeoutError is TimeoutError on 3.11+
+            raise OrchestratorError(
+                f"Step '{name}' exceeded the {STEP_TIMEOUT_SECONDS:.0f}s per-step timeout"
+            ) from exc
+        if isinstance(result, dict):
+            result.setdefault("iteration_count", iteration)
+            return result
+        return {}
+
+    return _wrapped
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -34,6 +96,7 @@ class AgenticRAGState(TypedDict, total=False):
     correlation_id: str
     session: AsyncSession
     embedding_port: EmbeddingPort
+    iteration_count: int
 
     # Routing & Disambiguation
     plan: dict[str, Any]
@@ -654,9 +717,9 @@ def _build_agentic_rag_graph(llm: LLMPort):
 
     # Assemble LangGraph linearly: router -> tool_executor -> synthesizer -> END
     builder = StateGraph(AgenticRAGState)
-    builder.add_node("router", router_node)
-    builder.add_node("tool_executor", tool_executor_node)
-    builder.add_node("synthesizer", synthesizer_node)
+    builder.add_node("router", _guard_step("router", router_node))
+    builder.add_node("tool_executor", _guard_step("tool_executor", tool_executor_node))
+    builder.add_node("synthesizer", _guard_step("synthesizer", synthesizer_node))
 
     builder.set_entry_point("router")
     builder.add_edge("router", "tool_executor")
@@ -677,6 +740,14 @@ class LangGraphOrchestrator(OrchestratorPort):
     def __init__(self, llm: LLMPort) -> None:
         self.llm = llm
         self.graph = _build_agentic_rag_graph(self.llm)
+        # LangGraph exposes node-level update streaming via ``stream_mode``; detect
+        # support once so older builds fall back to a single ``ainvoke`` cleanly.
+        try:
+            self._supports_update_stream = (
+                "stream_mode" in inspect.signature(self.graph.astream).parameters
+            )
+        except (TypeError, ValueError):  # pragma: no cover - defensive
+            self._supports_update_stream = False
 
     def run_screening(
         self,
@@ -723,11 +794,35 @@ class LangGraphOrchestrator(OrchestratorPort):
                     "candidate_id": str(candidate_id),
                     "job_id": str(job_id) if job_id else None,
                     "degraded": degraded,
+                    "mode": "plain_rag" if degraded else "agentic",
                     "justification": response.text,
                 },
             }
 
         return _generator()
+
+    async def _iter_graph_updates(
+        self, initial_state: AgenticRAGState
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Yield each node's output as it completes (live agent progress).
+
+        Uses LangGraph's node-level ``stream_mode="updates"``. If the installed
+        build lacks that mode, it falls back to a single ``ainvoke`` so behaviour
+        is identical apart from progress being emitted at the end.
+        """
+        config = {"recursion_limit": MAX_ITERATIONS}
+        if self._supports_update_stream:
+            async for update in self.graph.astream(
+                initial_state, config=config, stream_mode="updates"
+            ):
+                if isinstance(update, dict):
+                    for node_output in update.values():
+                        if isinstance(node_output, dict):
+                            yield node_output
+        else:  # pragma: no cover - only on very old langgraph builds
+            final_state = await self.graph.ainvoke(initial_state, config=config)
+            if isinstance(final_state, dict):
+                yield final_state
 
     def ask(
         self,
@@ -738,7 +833,13 @@ class LangGraphOrchestrator(OrchestratorPort):
         embedding: EmbeddingPort | None = None,
         **kwargs: Any,
     ) -> AsyncIterator[dict[str, Any]]:
-        """Agentic RAG: router -> multi-scope execution -> grounded synthesis."""
+        """Agentic RAG: router -> multi-scope execution -> grounded synthesis.
+
+        Emits live ``agent_event`` progress as each node completes and streams the
+        final grounded answer token-by-token (FR-6). Any guard trip (per-step
+        timeout, iteration breaker) or graph error degrades gracefully to a direct
+        Plain-RAG answer flagged with ``degraded: true`` and ``mode: "plain_rag"``.
+        """
 
         async def _ask_generator():
             initial_state: AgenticRAGState = {
@@ -747,6 +848,7 @@ class LangGraphOrchestrator(OrchestratorPort):
                 "correlation_id": correlation_id,
                 "session": session,  # type: ignore[typeddict-item]
                 "embedding_port": embedding,  # type: ignore[typeddict-item]
+                "iteration_count": 0,
                 "events": [],
                 "plan": {},
                 "target_candidates": [],
@@ -760,26 +862,47 @@ class LangGraphOrchestrator(OrchestratorPort):
                 "degraded": False,
             }
 
+            final_state: dict[str, Any] = dict(initial_state)
+            emitted_events = 0
             try:
-                final_state = await self.graph.ainvoke(initial_state)
+                async for node_output in self._iter_graph_updates(initial_state):
+                    final_state.update(node_output)
+                    node_events = node_output.get("events") or []
+                    for event in node_events[emitted_events:]:
+                        yield {"type": "agent_event", "data": event}
+                    emitted_events = len(node_events)
             except Exception as exc:
-                logger.error("Agentic graph execution error: %s", exc, exc_info=True)
+                logger.error("Agentic graph execution error, degrading to Plain RAG: %s", exc)
                 response = await self.llm.generate(question, correlation_id=correlation_id)
-                yield {"type": "chunk", "data": response.text}
-                yield {"type": "done", "data": {"citations": [], "degraded": True}}
+                async for token in _stream_tokens(response.text):
+                    yield {"type": "chunk", "data": token, "citations": []}
+                yield {
+                    "type": "done",
+                    "data": {
+                        "citations": [],
+                        "degraded": True,
+                        "mode": "plain_rag",
+                        "reason": str(exc),
+                    },
+                }
                 return
 
-            answer = final_state.get("answer", "")
-            citations = final_state.get("citations", [])
-            events = final_state.get("events", [])
+            answer = final_state.get("answer", "") or ""
+            citations = final_state.get("citations", []) or []
+            events = final_state.get("events", []) or []
 
-            for event in events:
-                yield {"type": "agent_event", "data": event}
+            # Token-level streaming (FR-6): paint the grounded answer incrementally.
+            async for token in _stream_tokens(answer):
+                yield {"type": "chunk", "data": token, "citations": citations}
 
-            yield {"type": "chunk", "data": answer, "citations": citations}
             yield {
                 "type": "done",
-                "data": {"citations": citations, "degraded": False, "agent_events": events},
+                "data": {
+                    "citations": citations,
+                    "degraded": False,
+                    "mode": "agentic",
+                    "agent_events": events,
+                },
             }
 
         return _ask_generator()

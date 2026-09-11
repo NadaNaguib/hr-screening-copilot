@@ -71,3 +71,9 @@ class PipelineError(DomainError):
     """Screening pipeline failure."""
 
     code = "pipeline_error"
+
+
+class OrchestratorError(DomainError):
+    """Agentic orchestrator safety guard tripped (timeout or iteration bound)."""
+
+    code = "orchestrator_error"
