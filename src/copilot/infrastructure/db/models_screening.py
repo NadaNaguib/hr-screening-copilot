@@ -6,7 +6,16 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -38,6 +47,8 @@ class CandidateORM(Base):
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="uploaded")
     overall_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     priority: Mapped[str] = mapped_column(String(20), nullable=False, default="MEDIUM")
+    interview_probes: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    probes_generated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False

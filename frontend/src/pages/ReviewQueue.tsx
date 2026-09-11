@@ -15,6 +15,11 @@ import {
   AlertTriangle,
   RefreshCw,
   FileText,
+  ClipboardList,
+  Plus,
+  Trash2,
+  Save,
+  X,
 } from "lucide-react"
 import { CvViewerModal } from "../components/CvViewerModal"
 
@@ -32,6 +37,13 @@ interface Task {
   manager_comment: string | null
   admin_override_reason: string | null
   created_at: string | null
+  probes_generated?: boolean
+  interview_probes?: Probe[]
+}
+
+interface Probe {
+  category: string
+  question: string
 }
 
 /** Returns { label, urgent, breached } for a deadline ISO string */
@@ -51,6 +63,9 @@ export function ReviewQueue() {
   const [acting, setActing] = useState<Record<string, boolean>>({})
   const [reason, setReason] = useState<Record<string, string>>({})
   const [selectedCv, setSelectedCv] = useState<{ id: string; name?: string } | null>(null)
+  const [probesTask, setProbesTask] = useState<Task | null>(null)
+  const [probesDraft, setProbesDraft] = useState<Probe[]>([])
+  const [savingProbes, setSavingProbes] = useState(false)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
   const [, setTick] = useState(0)
@@ -91,7 +106,14 @@ export function ReviewQueue() {
       action === "forward_to_manager" || action === "reject_at_triage"
         ? "/review-queue/triage"
         : "/review-queue/decide"
-    const reasonText = reason[taskId] || ""
+    const reasonText = (reason[taskId] || "").trim()
+
+    // Rejecting a candidate is the ONLY action that mandates a comment. The
+    // backend enforces this too (HTTP 400); we block early for instant feedback.
+    if ((action === "reject" || action === "reject_at_triage") && !reasonText) {
+      toast.error("A comment explaining the decision is required before rejecting a candidate.")
+      return
+    }
 
     const originalTasks = [...tasks]
     const nextStatus = deriveOptimisticStatus(action)
@@ -152,6 +174,60 @@ export function ReviewQueue() {
       setTasks(originalTasks)
     } finally {
       setActing((a) => ({ ...a, [taskId]: false }))
+    }
+  }
+
+  function openProbes(task: Task) {
+    setProbesTask(task)
+    setProbesDraft(
+      (task.interview_probes || []).map((p) => ({
+        category: p.category || "technical",
+        question: p.question || "",
+      }))
+    )
+  }
+
+  function updateProbe(index: number, patch: Partial<Probe>) {
+    setProbesDraft((draft) => draft.map((p, i) => (i === index ? { ...p, ...patch } : p)))
+  }
+
+  function addProbe() {
+    setProbesDraft((draft) => [...draft, { category: "technical", question: "" }])
+  }
+
+  function removeProbe(index: number) {
+    setProbesDraft((draft) => draft.filter((_, i) => i !== index))
+  }
+
+  async function saveProbes() {
+    if (!probesTask) return
+    const cleaned = probesDraft.filter((p) => p.question.trim())
+    setSavingProbes(true)
+    try {
+      await apiClient.put(`/candidates/${probesTask.candidate_id}/probes`, {
+        interview_probes: cleaned,
+      })
+      toast.success("Interview probes saved")
+      setProbesTask(null)
+      await fetchTasks()
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save interview probes")
+    } finally {
+      setSavingProbes(false)
+    }
+  }
+
+  async function generateProbesFor(task: Task) {
+    setActing((a) => ({ ...a, [task.id]: true }))
+    const toastId = toast.loading("Generating interview probes...")
+    try {
+      await apiClient.post(`/candidates/${task.candidate_id}/generate-probes`, {})
+      toast.success("Interview probes generated", { id: toastId })
+      await fetchTasks()
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate interview probes", { id: toastId })
+    } finally {
+      setActing((a) => ({ ...a, [task.id]: false }))
     }
   }
 
@@ -403,6 +479,17 @@ export function ReviewQueue() {
                       </button>
                     )}
 
+                    {/* Interview Probes */}
+                    <button
+                      id={`btn-probes-${t.id.slice(0, 8)}`}
+                      disabled={isBusy}
+                      onClick={() => openProbes(t)}
+                      title="View, edit, add or remove tailored interview probes"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md shadow-xs transition disabled:opacity-50"
+                    >
+                      <ClipboardList className="w-3.5 h-3.5" /> Interview Probes
+                    </button>
+
                     {isTerminal && (
                       <span className="text-xs text-surface-muted italic pr-2">Decision Logged</span>
                     )}
@@ -421,6 +508,103 @@ export function ReviewQueue() {
           </div>
         )}
       </div>
+
+      {/* Interview Probes Modal */}
+      {probesTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-surface-border">
+              <div className="flex items-center gap-2">
+                <ClipboardList className="w-4 h-4 text-brand-primary" />
+                <h3 className="font-semibold text-surface-text">
+                  Interview Probes — {probesTask.candidate_name || "Candidate"}
+                </h3>
+              </div>
+              <button
+                onClick={() => setProbesTask(null)}
+                className="p-1 rounded-md hover:bg-surface-page text-surface-muted"
+                title="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3 overflow-y-auto">
+              {probesDraft.length === 0 && (
+                <div className="text-center py-6 space-y-2">
+                  <p className="text-sm text-surface-muted italic">No interview probes yet.</p>
+                  <button
+                    onClick={async () => {
+                      await generateProbesFor(probesTask)
+                      setProbesTask(null)
+                    }}
+                    disabled={savingProbes}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-md font-medium transition disabled:opacity-50"
+                  >
+                    <ClipboardList className="w-3.5 h-3.5" /> Generate Probes
+                  </button>
+                </div>
+              )}
+
+              {probesDraft.map((probe, index) => (
+                <div
+                  key={index}
+                  className="border border-surface-border rounded-lg p-3 space-y-2 bg-surface-page/40"
+                >
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={probe.category}
+                      onChange={(e) => updateProbe(index, { category: e.target.value })}
+                      className="px-2 py-1 border border-surface-border rounded-md text-xs bg-white font-semibold"
+                    >
+                      <option value="technical">Technical</option>
+                      <option value="behavioral">Behavioral</option>
+                      <option value="gap">Gap / Red-flag</option>
+                    </select>
+                    <button
+                      onClick={() => removeProbe(index)}
+                      title="Delete this question"
+                      className="ml-auto inline-flex items-center gap-1 px-2 py-1 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Delete
+                    </button>
+                  </div>
+                  <textarea
+                    value={probe.question}
+                    onChange={(e) => updateProbe(index, { question: e.target.value })}
+                    rows={2}
+                    placeholder="Interview question..."
+                    className="w-full px-2.5 py-1.5 border border-surface-border rounded-lg text-sm bg-white focus:ring-1 focus:ring-brand-primary"
+                  />
+                </div>
+              ))}
+
+              <button
+                onClick={addProbe}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-brand-primary border border-brand-primary/30 bg-indigo-50 hover:bg-indigo-100 rounded-md transition"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add Question
+              </button>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-surface-border">
+              <button
+                onClick={() => setProbesTask(null)}
+                className="px-3 py-1.5 text-sm border border-surface-border rounded-lg hover:bg-surface-page transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveProbes}
+                disabled={savingProbes}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-sm bg-brand-primary hover:bg-brand-primary/90 text-white rounded-lg font-medium transition disabled:opacity-50"
+              >
+                <Save className="w-3.5 h-3.5" /> {savingProbes ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Original CV Viewer Modal */}
       <CvViewerModal

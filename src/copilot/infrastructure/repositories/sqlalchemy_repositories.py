@@ -137,6 +137,8 @@ def _candidate_to_domain(orm: CandidateORM) -> Candidate:
         status=CandidateStatus(orm.status),
         overall_score=orm.overall_score,
         priority=orm.priority,
+        interview_probes=orm.interview_probes or [],
+        probes_generated=bool(orm.probes_generated),
         created_at=orm.created_at,
         updated_at=orm.updated_at,
     )
@@ -158,6 +160,8 @@ def _candidate_from_domain(domain: Candidate) -> CandidateORM:
         status=domain.status.value,
         overall_score=domain.overall_score,
         priority=domain.priority,
+        interview_probes=domain.interview_probes,
+        probes_generated=domain.probes_generated,
         created_at=domain.created_at,
         updated_at=domain.updated_at,
     )

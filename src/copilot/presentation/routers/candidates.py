@@ -7,7 +7,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 
+from copilot.agents.interview_probe_generator import generate_interview_probes
 from copilot.application.use_cases.upload_candidate import upload_candidate
+from copilot.domain.errors import NotFoundError
 from copilot.infrastructure.di import Container
 from copilot.infrastructure.observability.correlation import get_correlation_id
 from copilot.infrastructure.parsing.parser import is_supported_document
@@ -120,6 +122,100 @@ async def upload_candidate_endpoint(
     )
 
 
+@router.post("/candidates/{candidate_id}/generate-probes", status_code=status.HTTP_201_CREATED)
+async def generate_candidate_probes(
+    candidate_id: UUID,
+    container: Container = Depends(get_container),
+    user: dict = Depends(require_roles("admin", "hiring_manager", "hr_recruiter")),
+) -> dict:
+    """Generate and persist tailored interview probes for a screened candidate.
+
+    Probes are produced on demand so that LLM tokens are only spent when a
+    recruiter explicitly asks for them (the mimic flow generates them eagerly
+    as part of its single end-to-end run).
+    """
+    candidate = await container.candidate_repository.get_candidate(candidate_id)
+    if not candidate:
+        raise NotFoundError(f"Candidate {candidate_id} not found")
+
+    job = (
+        await container.document_repository.get_job(candidate.job_id)
+        if candidate.job_id
+        else None
+    )
+    probes = await generate_interview_probes(
+        llm=container.llm,
+        candidate=candidate,
+        job=job,
+        correlation_id=get_correlation_id(),
+    )
+
+    candidate.set_interview_probes(probes)
+    await container.candidate_repository.update_candidate(candidate)
+
+    await container.audit.log(
+        action="generate_interview_probes",
+        target_type="candidate",
+        target_id=str(candidate_id),
+        actor_id=user["id"],
+        actor_role=user["role"],
+        details={"probe_count": len(probes)},
+        correlation_id=get_correlation_id(),
+    )
+    return {
+        "candidate_id": str(candidate_id),
+        "probes_generated": True,
+        "interview_probes": probes,
+    }
+
+
+class InterviewProbesUpdate(BaseModel):
+    interview_probes: list[dict] = []
+
+
+@router.put("/candidates/{candidate_id}/probes")
+async def update_candidate_probes(
+    candidate_id: UUID,
+    payload: InterviewProbesUpdate,
+    container: Container = Depends(get_container),
+    user: dict = Depends(require_roles("admin", "hiring_manager", "hr_recruiter")),
+) -> dict:
+    """Persist recruiter/manager edits to a candidate's interview probes.
+
+    Editing probes never requires a decision comment — only *rejecting* a
+    candidate does. Empty questions are dropped so a saved set is always clean.
+    """
+    candidate = await container.candidate_repository.get_candidate(candidate_id)
+    if not candidate:
+        raise NotFoundError(f"Candidate {candidate_id} not found")
+
+    cleaned: list[dict] = []
+    for item in payload.interview_probes:
+        question = str(item.get("question", "")).strip()
+        if not question:
+            continue
+        category = str(item.get("category", "technical")).strip() or "technical"
+        cleaned.append({"category": category, "question": question})
+
+    candidate.set_interview_probes(cleaned)
+    await container.candidate_repository.update_candidate(candidate)
+
+    await container.audit.log(
+        action="update_interview_probes",
+        target_type="candidate",
+        target_id=str(candidate_id),
+        actor_id=user["id"],
+        actor_role=user["role"],
+        details={"probe_count": len(cleaned)},
+        correlation_id=get_correlation_id(),
+    )
+    return {
+        "candidate_id": str(candidate_id),
+        "probes_generated": candidate.probes_generated,
+        "interview_probes": cleaned,
+    }
+
+
 @router.get("/candidates")
 async def list_candidates(
     job_id: UUID | None = None,
@@ -138,6 +234,8 @@ async def list_candidates(
             "priority": c.priority,
             "years_of_experience": c.years_of_experience,
             "skills": c.skills,
+            "probes_generated": c.probes_generated,
+            "interview_probes": c.interview_probes,
         }
         for c in candidates
     ]

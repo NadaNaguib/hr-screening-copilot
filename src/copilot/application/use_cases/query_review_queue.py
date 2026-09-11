@@ -47,9 +47,11 @@ async def query_review_queue(
 
     candidate_map: dict[UUID, str] = {}
     job_map: dict[UUID, str] = {}
+    probes_map: dict[UUID, tuple[bool, list]] = {}
     if tasks:
         all_candidates = await container.candidate_repository.list_candidates()
         candidate_map = {c.id: c.full_name for c in all_candidates}
+        probes_map = {c.id: (c.probes_generated, c.interview_probes) for c in all_candidates}
         all_jobs = await container.document_repository.list_jobs()
         job_map = {j.id: j.title for j in all_jobs}
 
@@ -73,6 +75,12 @@ async def query_review_queue(
             "triage_reason": t.triage_reason,
             "manager_comment": t.manager_comment,
             "admin_override_reason": t.admin_override_reason,
+            "probes_generated": (
+                probes_map.get(t.candidate_id, (False, []))[0] if t.candidate_id else False
+            ),
+            "interview_probes": (
+                probes_map.get(t.candidate_id, (False, []))[1] if t.candidate_id else []
+            ),
             "created_at": t.created_at.isoformat() if t.created_at else None,
             "updated_at": t.updated_at.isoformat() if t.updated_at else None,
         }

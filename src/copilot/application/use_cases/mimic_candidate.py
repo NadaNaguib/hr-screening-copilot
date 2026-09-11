@@ -5,6 +5,7 @@ from __future__ import annotations
 import random
 from uuid import UUID
 
+from copilot.agents.interview_probe_generator import generate_interview_probes
 from copilot.application.use_cases.run_screening_pipeline import run_screening_pipeline
 from copilot.application.use_cases.upload_candidate import upload_candidate
 from copilot.domain.errors import NotFoundError
@@ -110,6 +111,23 @@ async def mimic_candidate_for_job(
     except Exception as exc:
         pipeline_result = {"status": "error", "message": str(exc)}
 
+    # Eagerly generate tailored interview probes so the one-click flow ends at
+    # "screened + Probes Ready". Failure here must never undo the screening run.
+    probes: list[dict] = []
+    try:
+        screened = await container.candidate_repository.get_candidate(candidate_id)
+        if screened is not None:
+            probes = await generate_interview_probes(
+                llm=container.llm,
+                candidate=screened,
+                job=job,
+                correlation_id=correlation_id,
+            )
+            screened.set_interview_probes(probes)
+            await container.candidate_repository.update_candidate(screened)
+    except Exception:
+        probes = []
+
     return {
         "candidate_id": str(candidate_id),
         "full_name": candidate_name,
@@ -117,5 +135,7 @@ async def mimic_candidate_for_job(
         "job_title": job.title,
         "extracted_skills": upload_result.get("extracted_skills", []),
         "years_of_experience": upload_result.get("years_of_experience", 5.0),
+        "interview_probes": probes,
+        "probes_generated": bool(probes),
         "pipeline": pipeline_result,
     }
