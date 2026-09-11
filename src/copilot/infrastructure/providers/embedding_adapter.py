@@ -1,4 +1,5 @@
 """Gemini embedding adapter with deterministic fallback."""
+
 from __future__ import annotations
 
 import hashlib
@@ -24,7 +25,9 @@ class GeminiEmbeddingAdapter(EmbeddingPort):
     """Embedding adapter using Gemini API or deterministic fallback."""
 
     def __init__(self, model: str | None = None, api_key: str | None = None) -> None:
-        self.model = model or os.environ.get("GEMINI_EMBEDDING_MODEL", "models/gemini-embedding-001")
+        self.model = model or os.environ.get(
+            "GEMINI_EMBEDDING_MODEL", "models/gemini-embedding-001"
+        )
         self.api_key = api_key
         self._configured = False
 

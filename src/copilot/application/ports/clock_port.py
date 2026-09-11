@@ -1,4 +1,5 @@
 """Clock port for testable time."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

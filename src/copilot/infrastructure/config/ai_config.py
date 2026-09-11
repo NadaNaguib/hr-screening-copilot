@@ -4,6 +4,7 @@ This module holds runtime-overridable AI settings. It is separate from the
 Pydantic Settings object so that admin changes can take effect immediately
 without restarting the process.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -75,7 +76,11 @@ class AIConfigManager:
 
     def to_dict(self, include_key: bool = False) -> dict[str, Any]:
         return {
-            "gemini_api_key": self._config.gemini_api_key if include_key else "***" if self._config.gemini_api_key else "",
+            "gemini_api_key": self._config.gemini_api_key
+            if include_key
+            else "***"
+            if self._config.gemini_api_key
+            else "",
             "gemini_model": self._config.gemini_model,
             "fast_model": self._config.fast_model,
             "model_priority_queue": self._config.model_priority_queue,

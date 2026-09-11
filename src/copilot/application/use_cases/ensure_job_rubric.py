@@ -5,6 +5,7 @@ scoring criteria, which previously caused ``run_screening_pipeline`` to leave
 ``overall_score`` at ``0``. This module derives a sensible default rubric from
 the job's required skills so the pipeline always produces a Match Score.
 """
+
 from __future__ import annotations
 
 from copilot.domain.job import Job

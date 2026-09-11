@@ -5,6 +5,7 @@ Usage:
     . .venv/bin/activate
     python scripts/seed.py
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -61,18 +62,80 @@ DEMO_JOBS = [
 ]
 
 RUBRIC_TEMPLATE = [
-    ("Python proficiency", "Mastery of Python language and ecosystem.", "HIGH", True, ["python", "fastapi", "django"], 1, 5),
-    ("System design", "Ability to design scalable, maintainable systems.", "HIGH", True, ["scalability", "architecture"], 1, 5),
-    ("Communication", "Clear written and verbal communication.", "MEDIUM", False, ["communication", "teamwork"], 1, 5),
-    ("Relevant experience", "Years and relevance of prior roles.", "MEDIUM", True, ["experience", "senior"], 1, 5),
+    (
+        "Python proficiency",
+        "Mastery of Python language and ecosystem.",
+        "HIGH",
+        True,
+        ["python", "fastapi", "django"],
+        1,
+        5,
+    ),
+    (
+        "System design",
+        "Ability to design scalable, maintainable systems.",
+        "HIGH",
+        True,
+        ["scalability", "architecture"],
+        1,
+        5,
+    ),
+    (
+        "Communication",
+        "Clear written and verbal communication.",
+        "MEDIUM",
+        False,
+        ["communication", "teamwork"],
+        1,
+        5,
+    ),
+    (
+        "Relevant experience",
+        "Years and relevance of prior roles.",
+        "MEDIUM",
+        True,
+        ["experience", "senior"],
+        1,
+        5,
+    ),
 ]
 
 CANDIDATE_PROFILES = [
-    ("Alice Johnson", "alice.johnson@example.com", "Senior Python engineer with 8 years of experience building FastAPI microservices and PostgreSQL data pipelines.", ["Python", "FastAPI", "PostgreSQL", "System Design"], 8.0),
-    ("Bob Smith", "bob.smith@example.com", "Frontend developer specialized in React, TypeScript, and Tailwind CSS with a strong eye for UX.", ["React", "TypeScript", "Tailwind CSS", "UX"], 5.0),
-    ("Carol White", "carol.white@example.com", "DevOps practitioner experienced with Docker, Kubernetes, Terraform, and AWS CI/CD pipelines.", ["Docker", "Kubernetes", "Terraform", "AWS"], 7.0),
-    ("David Brown", "david.brown@example.com", "Full-stack developer comfortable with Python and React, leading small teams on SaaS products.", ["Python", "React", "Leadership", "SaaS"], 6.0),
-    ("Eva Green", "eva.green@example.com", "Junior backend developer with Python and Django experience, eager to learn FastAPI.", ["Python", "Django", "Learning"], 2.0),
+    (
+        "Alice Johnson",
+        "alice.johnson@example.com",
+        "Senior Python engineer with 8 years of experience building FastAPI microservices and PostgreSQL data pipelines.",
+        ["Python", "FastAPI", "PostgreSQL", "System Design"],
+        8.0,
+    ),
+    (
+        "Bob Smith",
+        "bob.smith@example.com",
+        "Frontend developer specialized in React, TypeScript, and Tailwind CSS with a strong eye for UX.",
+        ["React", "TypeScript", "Tailwind CSS", "UX"],
+        5.0,
+    ),
+    (
+        "Carol White",
+        "carol.white@example.com",
+        "DevOps practitioner experienced with Docker, Kubernetes, Terraform, and AWS CI/CD pipelines.",
+        ["Docker", "Kubernetes", "Terraform", "AWS"],
+        7.0,
+    ),
+    (
+        "David Brown",
+        "david.brown@example.com",
+        "Full-stack developer comfortable with Python and React, leading small teams on SaaS products.",
+        ["Python", "React", "Leadership", "SaaS"],
+        6.0,
+    ),
+    (
+        "Eva Green",
+        "eva.green@example.com",
+        "Junior backend developer with Python and Django experience, eager to learn FastAPI.",
+        ["Python", "Django", "Learning"],
+        2.0,
+    ),
 ]
 
 
@@ -244,6 +307,7 @@ async def seed() -> None:
         await _ensure_sla_rules(session, jobs)
         await session.commit()
         from scripts.seed_full_candidates import run_seed
+
         await run_seed()
         print("Seed complete.")
         print("Users:")

@@ -1,4 +1,5 @@
 """Candidate endpoints."""
+
 from __future__ import annotations
 
 from uuid import UUID
@@ -184,7 +185,9 @@ async def get_candidate_cv(
     doc = None
     for d in docs_res.scalars().all():
         meta = d.metadata_ or {}
-        if str(meta.get("candidate_id")) == str(candidate_id) or d.filename.startswith(cand.full_name.replace(" ", "_")):
+        if str(meta.get("candidate_id")) == str(candidate_id) or d.filename.startswith(
+            cand.full_name.replace(" ", "_")
+        ):
             doc = d
             break
 
@@ -225,7 +228,9 @@ async def download_candidate_cv(
     doc = None
     for d in docs_res.scalars().all():
         meta = d.metadata_ or {}
-        if str(meta.get("candidate_id")) == str(candidate_id) or d.filename.startswith(cand.full_name.replace(" ", "_")):
+        if str(meta.get("candidate_id")) == str(candidate_id) or d.filename.startswith(
+            cand.full_name.replace(" ", "_")
+        ):
             doc = d
             break
 
@@ -262,7 +267,9 @@ async def get_candidate_cv_pdf(
     doc = None
     for d in docs_res.scalars().all():
         meta = d.metadata_ or {}
-        if str(meta.get("candidate_id")) == str(candidate_id) or d.filename.startswith(cand.full_name.replace(" ", "_")):
+        if str(meta.get("candidate_id")) == str(candidate_id) or d.filename.startswith(
+            cand.full_name.replace(" ", "_")
+        ):
             doc = d
             break
 
@@ -270,7 +277,11 @@ async def get_candidate_cv_pdf(
     meta = (doc.metadata_ if doc else {}) or {}
     if "pdf_bytes_b64" in meta:
         pdf_bytes = base64.b64decode(meta["pdf_bytes_b64"])
-        filename = doc.filename if doc and doc.filename.endswith(".pdf") else f"{cand.full_name.replace(' ', '_')}_CV.pdf"
+        filename = (
+            doc.filename
+            if doc and doc.filename.endswith(".pdf")
+            else f"{cand.full_name.replace(' ', '_')}_CV.pdf"
+        )
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
@@ -284,7 +295,9 @@ async def get_candidate_cv_pdf(
             return Response(
                 content=f.read(),
                 media_type="application/pdf",
-                headers={"Content-Disposition": f'inline; filename="{cand.full_name.replace(" ", "_")}_CV.pdf"'},
+                headers={
+                    "Content-Disposition": f'inline; filename="{cand.full_name.replace(" ", "_")}_CV.pdf"'
+                },
             )
 
     # 3. Generate authentic PDF resume using reportlab

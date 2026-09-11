@@ -1,4 +1,5 @@
 """Extract structured evidence from candidate text."""
+
 from __future__ import annotations
 
 import re

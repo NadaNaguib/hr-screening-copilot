@@ -1,4 +1,5 @@
 """Domain layer."""
+
 from __future__ import annotations
 
 from copilot.domain.bias_rules import BiasFinding, BiasRules

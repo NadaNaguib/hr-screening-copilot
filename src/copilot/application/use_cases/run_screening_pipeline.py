@@ -1,4 +1,5 @@
 """Run the agentic screening pipeline for a candidate."""
+
 from __future__ import annotations
 
 from uuid import UUID
@@ -87,7 +88,11 @@ async def run_screening_pipeline(
         target_id=str(candidate.id),
         actor_id=None,
         actor_role=None,
-        details={"overall_score": overall, "evidence_count": len(evidence), "score_count": len(scores)},
+        details={
+            "overall_score": overall,
+            "evidence_count": len(evidence),
+            "score_count": len(scores),
+        },
         correlation_id=correlation_id,
     )
     return {

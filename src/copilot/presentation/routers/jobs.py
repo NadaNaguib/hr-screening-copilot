@@ -1,4 +1,5 @@
 """Job and rubric endpoints."""
+
 from __future__ import annotations
 
 from uuid import UUID
@@ -109,7 +110,9 @@ async def create_rubric(
         )
         for c in request.criteria
     ]
-    rubric = Rubric(job_id=job_id, name=request.name, description=request.description, criteria=criteria)
+    rubric = Rubric(
+        job_id=job_id, name=request.name, description=request.description, criteria=criteria
+    )
     saved = await container.document_repository.create_rubric(rubric)
     return {"id": str(saved.id), "criteria_count": len(saved.criteria)}
 

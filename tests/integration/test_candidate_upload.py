@@ -1,4 +1,5 @@
 """Integration tests for candidate CV upload: multipart parsing & format validation."""
+
 from __future__ import annotations
 
 from uuid import uuid4

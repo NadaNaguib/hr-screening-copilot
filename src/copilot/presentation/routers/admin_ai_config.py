@@ -1,4 +1,5 @@
 """Admin AI/RAG settings and usage endpoints."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -68,7 +69,9 @@ async def update_ai_config(
     admin_user: dict = Depends(require_roles("admin")),
 ) -> dict[str, Any]:
     manager = AIConfigManager()
-    updates = {k: v for k, v in request.model_dump().items() if v is not None or isinstance(v, bool)}
+    updates = {
+        k: v for k, v in request.model_dump().items() if v is not None or isinstance(v, bool)
+    }
     if "gemini_api_key" in updates and not updates["gemini_api_key"]:
         # Empty string means keep current key; never overwrite with empty to avoid accidental wipe
         del updates["gemini_api_key"]
@@ -134,7 +137,9 @@ async def test_ai(
             )
             meta = response.metadata or {}
             if response.model == "degraded" or meta.get("degraded"):
-                last_err = meta.get("last_error") or "LLM generation failed and degraded to offline mode"
+                last_err = (
+                    meta.get("last_error") or "LLM generation failed and degraded to offline mode"
+                )
                 return {
                     "ok": False,
                     "model": manager.config.gemini_model,

@@ -1,4 +1,5 @@
 """Export shortlist as CSV or PDF."""
+
 from __future__ import annotations
 
 import csv
@@ -31,9 +32,20 @@ async def export_shortlist(
     if format == ShortlistFormat.CSV.value:
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow(["candidate_id", "full_name", "email", "overall_score", "status", "manager_comment"])
+        writer.writerow(
+            ["candidate_id", "full_name", "email", "overall_score", "status", "manager_comment"]
+        )
         for e in entries:
-            writer.writerow([str(e.candidate_id), e.full_name, e.email, e.overall_score, e.status, e.manager_comment])
+            writer.writerow(
+                [
+                    str(e.candidate_id),
+                    e.full_name,
+                    e.email,
+                    e.overall_score,
+                    e.status,
+                    e.manager_comment,
+                ]
+            )
         return output.getvalue().encode("utf-8"), "text/csv"
 
     if format == ShortlistFormat.PDF.value:

@@ -1,4 +1,5 @@
 """LLM fallback policy with intelligent priority queue cascade and task-tier routing."""
+
 from __future__ import annotations
 
 import asyncio
@@ -170,7 +171,9 @@ class FallbackLLMProvider(LLMPort):
 
                     if is_rate_limit or is_unavailable:
                         next_model = (
-                            cascade_models[model_idx + 1] if model_idx + 1 < len(cascade_models) else None
+                            cascade_models[model_idx + 1]
+                            if model_idx + 1 < len(cascade_models)
+                            else None
                         )
                         logger.warning(
                             "[PriorityQueueCascade] Model '%s' encountered limit/error (%s). "

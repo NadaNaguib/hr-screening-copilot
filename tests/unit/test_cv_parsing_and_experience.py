@@ -1,4 +1,5 @@
 """Unit tests for CV document parsing, format validation, and experience extraction."""
+
 from __future__ import annotations
 
 from io import BytesIO

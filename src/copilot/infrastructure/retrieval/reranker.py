@@ -1,4 +1,5 @@
 """Optional reranker (placeholder / identity)."""
+
 from __future__ import annotations
 
 from copilot.domain.evidence import Evidence

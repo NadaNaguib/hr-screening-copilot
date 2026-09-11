@@ -1,4 +1,5 @@
 """LangGraph Agentic RAG orchestrator with multi-scope tool execution and strict candidate scoping."""
+
 from __future__ import annotations
 
 import logging
@@ -24,8 +25,10 @@ logger = logging.getLogger(__name__)
 # Graph State
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class AgenticRAGState(TypedDict, total=False):
     """State threaded through the Agentic RAG multi-scope graph."""
+
     question: str
     job_id: str | None
     correlation_id: str
@@ -87,7 +90,12 @@ def _detect_candidate_names(question: str) -> list[str]:
     for pattern in name_patterns:
         matches = re.findall(pattern, question)
         for m in matches:
-            if m and m not in found and m.lower() not in ["system", "frontend", "backend", "devops", "senior", "lead", "cairo"]:
+            if (
+                m
+                and m not in found
+                and m.lower()
+                not in ["system", "frontend", "backend", "devops", "senior", "lead", "cairo"]
+            ):
                 found.append(m)
 
     return list(dict.fromkeys(found))
@@ -96,6 +104,7 @@ def _detect_candidate_names(question: str) -> list[str]:
 # ─────────────────────────────────────────────────────────────────────────────
 # LangGraph Nodes
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _build_agentic_rag_graph(llm: LLMPort):
     """Compile the Agentic RAG multi-scope graph."""
@@ -130,10 +139,25 @@ def _build_agentic_rag_graph(llm: LLMPort):
             w in ql for w in ["compare", "versus", "vs", "difference between", "better fit"]
         )
         is_job_inquiry = any(
-            w in ql for w in ["job description", "requirements for", "role require", "rubric", "criteria", "qualifications for"]
+            w in ql
+            for w in [
+                "job description",
+                "requirements for",
+                "role require",
+                "rubric",
+                "criteria",
+                "qualifications for",
+            ]
         )
         is_pipeline_inquiry = any(
-            w in ql for w in ["review queue", "pipeline stats", "how many candidates", "pending review", "shortlist status"]
+            w in ql
+            for w in [
+                "review queue",
+                "pipeline stats",
+                "how many candidates",
+                "pending review",
+                "shortlist status",
+            ]
         )
         is_candidate_inquiry = bool(target_candidates) and not is_comparison
 
@@ -143,7 +167,12 @@ def _build_agentic_rag_graph(llm: LLMPort):
         elif is_comparison:
             tools = ["candidate_comparator", "candidate_cv_search"]
         elif is_candidate_inquiry:
-            tools = ["candidate_profile_lookup", "candidate_cv_reader", "candidate_cv_search", "candidate_evaluation_reader"]
+            tools = [
+                "candidate_profile_lookup",
+                "candidate_cv_reader",
+                "candidate_cv_search",
+                "candidate_evaluation_reader",
+            ]
         elif is_job_inquiry:
             tools = ["job_requisition_tool", "job_rubric_tool"]
         elif is_pipeline_inquiry:
@@ -153,11 +182,15 @@ def _build_agentic_rag_graph(llm: LLMPort):
             tools = ["talent_pool_search", "candidate_profile_lookup"]
 
         plan = {
-            "intent": "candidate_comparison" if is_comparison else (
-                "candidate_inquiry" if is_candidate_inquiry else (
-                    "job_inquiry" if is_job_inquiry else (
-                        "pipeline_inquiry" if is_pipeline_inquiry else "talent_search"
-                    )
+            "intent": "candidate_comparison"
+            if is_comparison
+            else (
+                "candidate_inquiry"
+                if is_candidate_inquiry
+                else (
+                    "job_inquiry"
+                    if is_job_inquiry
+                    else ("pipeline_inquiry" if is_pipeline_inquiry else "talent_search")
                 )
             ),
             "tools": tools,
@@ -165,13 +198,15 @@ def _build_agentic_rag_graph(llm: LLMPort):
             "resolved_count": len(target_candidates),
         }
 
-        events.append({
-            "agent": "agentic_planner",
-            "scope": "router",
-            "status": "done",
-            "action": f"Planned {len(tools)} tools across scopes for intent '{plan['intent']}'",
-            "plan": plan,
-        })
+        events.append(
+            {
+                "agent": "agentic_planner",
+                "scope": "router",
+                "status": "done",
+                "action": f"Planned {len(tools)} tools across scopes for intent '{plan['intent']}'",
+                "plan": plan,
+            }
+        )
 
         return {
             "plan": plan,
@@ -210,21 +245,23 @@ def _build_agentic_rag_graph(llm: LLMPort):
                 cand_name = cand["full_name"]
 
                 # Candidate profile snippet
-                collected_evidence.append({
-                    "id": f"prof_{cand_id}",
-                    "quote": (
-                        f"Candidate: {cand_name} | Applied Job: {cand.get('job_title')} | "
-                        f"Experience: {cand.get('years_of_experience')} years | "
-                        f"Skills: {', '.join(cand.get('skills', []))} | "
-                        f"Score: {cand.get('overall_score')}/100 | Status: {cand.get('status')}"
-                    ),
-                    "source": f"{cand_name.replace(' ', '_')}_CV.pdf",
-                    "page": 1,
-                    "candidate_id": str(cand_id),
-                    "candidate_name": cand_name,
-                    "full_context": cand.get("raw_text") or str(cand),
-                    "scope": "candidate_profile",
-                })
+                collected_evidence.append(
+                    {
+                        "id": f"prof_{cand_id}",
+                        "quote": (
+                            f"Candidate: {cand_name} | Applied Job: {cand.get('job_title')} | "
+                            f"Experience: {cand.get('years_of_experience')} years | "
+                            f"Skills: {', '.join(cand.get('skills', []))} | "
+                            f"Score: {cand.get('overall_score')}/100 | Status: {cand.get('status')}"
+                        ),
+                        "source": f"{cand_name.replace(' ', '_')}_CV.pdf",
+                        "page": 1,
+                        "candidate_id": str(cand_id),
+                        "candidate_name": cand_name,
+                        "full_context": cand.get("raw_text") or str(cand),
+                        "scope": "candidate_profile",
+                    }
+                )
 
                 # Candidate CV text & sections
                 cv_res = await rag_tools.get_candidate_cv(session, cand_id)
@@ -233,29 +270,35 @@ def _build_agentic_rag_graph(llm: LLMPort):
 
                 # Isolated CV chunk search (only this candidate)
                 if embedding:
-                    cv_chunks = await rag_tools.search_candidate_cv(session, embedding, cand_id, question, top_k=5)
+                    cv_chunks = await rag_tools.search_candidate_cv(
+                        session, embedding, cand_id, question, top_k=5
+                    )
                     collected_evidence.extend(cv_chunks)
 
                 # Candidate screening evaluation
                 eval_res = await rag_tools.get_candidate_evaluation(session, cand_id)
-                collected_evidence.append({
-                    "id": f"eval_{cand_id}",
-                    "quote": eval_res.get("summary", ""),
-                    "source": "AI Screening Evaluation",
-                    "page": 1,
-                    "candidate_id": str(cand_id),
-                    "candidate_name": cand_name,
-                    "full_context": str(eval_res),
-                    "scope": "candidate_evaluation",
-                })
+                collected_evidence.append(
+                    {
+                        "id": f"eval_{cand_id}",
+                        "quote": eval_res.get("summary", ""),
+                        "source": "AI Screening Evaluation",
+                        "page": 1,
+                        "candidate_id": str(cand_id),
+                        "candidate_name": cand_name,
+                        "full_context": str(eval_res),
+                        "scope": "candidate_evaluation",
+                    }
+                )
 
-                events.append({
-                    "agent": "candidate_cv_reader",
-                    "scope": "candidate",
-                    "status": "done",
-                    "action": f"Retrieved strictly scoped CV and screening records for {cand_name}",
-                    "count": len(collected_evidence),
-                })
+                events.append(
+                    {
+                        "agent": "candidate_cv_reader",
+                        "scope": "candidate",
+                        "status": "done",
+                        "action": f"Retrieved strictly scoped CV and screening records for {cand_name}",
+                        "count": len(collected_evidence),
+                    }
+                )
 
         # 2. Candidate Comparison Execution
         if "candidate_comparator" in tools and len(targets) >= 2:
@@ -267,16 +310,20 @@ def _build_agentic_rag_graph(llm: LLMPort):
             if embedding:
                 for c in targets:
                     c_id = UUID(c["candidate_id"])
-                    c_chunks = await rag_tools.search_candidate_cv(session, embedding, c_id, question, top_k=3)
+                    c_chunks = await rag_tools.search_candidate_cv(
+                        session, embedding, c_id, question, top_k=3
+                    )
                     collected_evidence.extend(c_chunks)
 
-            events.append({
-                "agent": "candidate_comparator",
-                "scope": "talent_pool",
-                "status": "done",
-                "action": f"Generated comparative analysis matrix for {len(targets)} candidates",
-                "count": len(collected_evidence),
-            })
+            events.append(
+                {
+                    "agent": "candidate_comparator",
+                    "scope": "talent_pool",
+                    "status": "done",
+                    "action": f"Generated comparative analysis matrix for {len(targets)} candidates",
+                    "count": len(collected_evidence),
+                }
+            )
 
         # 3. Job Scope Execution
         if "job_requisition_tool" in tools or "job_rubric_tool" in tools:
@@ -290,27 +337,33 @@ def _build_agentic_rag_graph(llm: LLMPort):
                 rubric_res = await rag_tools.get_job_rubric(session, job_id=job_id)
                 collected_evidence.extend(rubric_res.get("citations", []))
 
-            events.append({
-                "agent": "job_requisition_tool",
-                "scope": "job",
-                "status": "done",
-                "action": "Retrieved job specifications and rubric criteria",
-                "count": len(collected_evidence),
-            })
+            events.append(
+                {
+                    "agent": "job_requisition_tool",
+                    "scope": "job",
+                    "status": "done",
+                    "action": "Retrieved job specifications and rubric criteria",
+                    "count": len(collected_evidence),
+                }
+            )
 
         # 4. Talent Pool Search Execution
         if "talent_pool_search" in tools:
             if embedding:
-                pool_chunks = await rag_tools.search_talent_pool(session, embedding, query=question, job_id=job_id, top_k=8)
+                pool_chunks = await rag_tools.search_talent_pool(
+                    session, embedding, query=question, job_id=job_id, top_k=8
+                )
                 collected_evidence.extend(pool_chunks)
 
-            events.append({
-                "agent": "talent_pool_search",
-                "scope": "talent_pool",
-                "status": "done",
-                "action": f"Retrieved {len(collected_evidence)} evidence snippets across talent pool",
-                "count": len(collected_evidence),
-            })
+            events.append(
+                {
+                    "agent": "talent_pool_search",
+                    "scope": "talent_pool",
+                    "status": "done",
+                    "action": f"Retrieved {len(collected_evidence)} evidence snippets across talent pool",
+                    "count": len(collected_evidence),
+                }
+            )
 
         # 5. Pipeline Scope Execution
         if "pipeline_stats_tool" in tools or "review_queue_tool" in tools:
@@ -321,22 +374,26 @@ def _build_agentic_rag_graph(llm: LLMPort):
                 f"({stats.get('screened')} screened, {stats.get('uploaded')} uploaded, "
                 f"{stats.get('shortlisted')} shortlisted). Review Queue: {len(tasks)} pending review tasks."
             )
-            collected_evidence.append({
-                "id": "pipe_stats",
-                "quote": quote,
-                "source": "Screening Pipeline Ledger",
-                "page": 1,
-                "candidate_id": "",
-                "full_context": f"Pipeline Stats: {stats}\nPending Tasks: {tasks}",
-                "scope": "pipeline",
-            })
-            events.append({
-                "agent": "pipeline_sla_tool",
-                "scope": "pipeline",
-                "status": "done",
-                "action": f"Queried pipeline health ({stats.get('total_candidates')} candidates, {len(tasks)} queue items)",
-                "count": 1,
-            })
+            collected_evidence.append(
+                {
+                    "id": "pipe_stats",
+                    "quote": quote,
+                    "source": "Screening Pipeline Ledger",
+                    "page": 1,
+                    "candidate_id": "",
+                    "full_context": f"Pipeline Stats: {stats}\nPending Tasks: {tasks}",
+                    "scope": "pipeline",
+                }
+            )
+            events.append(
+                {
+                    "agent": "pipeline_sla_tool",
+                    "scope": "pipeline",
+                    "status": "done",
+                    "action": f"Queried pipeline health ({stats.get('total_candidates')} candidates, {len(tasks)} queue items)",
+                    "count": 1,
+                }
+            )
 
         return {"collected_evidence": collected_evidence, "events": events}
 
@@ -350,17 +407,23 @@ def _build_agentic_rag_graph(llm: LLMPort):
         if state.get("candidate_not_found"):
             name = state.get("candidate_not_found_name", "the requested candidate")
             avail = state.get("available_candidates") or []
-            avail_str = f" Available candidates in the talent pool are: {', '.join(avail)}." if avail else ""
+            avail_str = (
+                f" Available candidates in the talent pool are: {', '.join(avail)}."
+                if avail
+                else ""
+            )
             answer = (
                 f"Candidate **{name}** was not found in the talent pool records. "
                 f"I cannot provide qualifications or details for non-existent profiles.{avail_str}"
             )
-            events.append({
-                "agent": "synthesizer",
-                "scope": "synthesis",
-                "status": "done",
-                "action": f"Completed candidate lookup: {name} not found",
-            })
+            events.append(
+                {
+                    "agent": "synthesizer",
+                    "scope": "synthesis",
+                    "status": "done",
+                    "action": f"Completed candidate lookup: {name} not found",
+                }
+            )
             return {"answer": answer, "citations": [], "events": events}
 
         all_evidence: list[dict[str, Any]] = state.get("collected_evidence") or []
@@ -386,30 +449,38 @@ def _build_agentic_rag_graph(llm: LLMPort):
             full_context = ev.get("full_context") or quote
             scope = ev.get("scope", "general")
 
-            citations.append({
-                "id": str(ev.get("id") or f"cite_{i}"),
-                "quote": quote,
-                "source": source,
-                "page": page,
-                "candidate_id": str(cand_id),
-                "candidate_name": cand_name,
-                "chunk_id": str(ev.get("chunk_id") or ev.get("id") or f"cite_{i}"),
-                "full_context": full_context,
-                "scope": scope,
-            })
+            citations.append(
+                {
+                    "id": str(ev.get("id") or f"cite_{i}"),
+                    "quote": quote,
+                    "source": source,
+                    "page": page,
+                    "candidate_id": str(cand_id),
+                    "candidate_name": cand_name,
+                    "chunk_id": str(ev.get("chunk_id") or ev.get("id") or f"cite_{i}"),
+                    "full_context": full_context,
+                    "scope": scope,
+                }
+            )
             context_blocks.append(
                 f"[{i}] Document: {source} (Page {page}) | Candidate: {cand_name or 'N/A'}\n"
-                f"Quote: \"{quote}\""
+                f'Quote: "{quote}"'
             )
 
-        context_str = "\n\n".join(context_blocks) if context_blocks else "No relevant documents found."
+        context_str = (
+            "\n\n".join(context_blocks) if context_blocks else "No relevant documents found."
+        )
 
         # Prompt with strict anti-hallucination & citation instructions
         target_names = [c["full_name"] for c in (state.get("target_candidates") or [])]
         name_constraint = (
-            f"\nSTRICT RULE: The user is specifically asking about: {', '.join(target_names)}. "
-            f"You MUST discuss ONLY {', '.join(target_names)}. Do NOT confuse with or mention other candidates unless comparing."
-        ) if target_names else ""
+            (
+                f"\nSTRICT RULE: The user is specifically asking about: {', '.join(target_names)}. "
+                f"You MUST discuss ONLY {', '.join(target_names)}. Do NOT confuse with or mention other candidates unless comparing."
+            )
+            if target_names
+            else ""
+        )
 
         synthesis_prompt = (
             "You are an expert HR Screening Copilot. Answer the user's question using ONLY the retrieved evidence below.\n"
@@ -424,33 +495,43 @@ def _build_agentic_rag_graph(llm: LLMPort):
         )
 
         try:
-            resp = await llm.generate(synthesis_prompt, temperature=0.1, max_tokens=1024, correlation_id=correlation_id)
+            resp = await llm.generate(
+                synthesis_prompt, temperature=0.1, max_tokens=1024, correlation_id=correlation_id
+            )
             raw_ans = resp.text.strip()
             meta = resp.metadata or {}
-            get_ledger().record(TokenCostRecord(
-                provider=meta.get("provider", "unknown"),
-                model=resp.model,
-                input_tokens=resp.input_tokens,
-                output_tokens=resp.output_tokens,
-                cost_usd=resp.cost_usd,
-                correlation_id=correlation_id,
-                metadata=meta,
-            ))
+            get_ledger().record(
+                TokenCostRecord(
+                    provider=meta.get("provider", "unknown"),
+                    model=resp.model,
+                    input_tokens=resp.input_tokens,
+                    output_tokens=resp.output_tokens,
+                    cost_usd=resp.cost_usd,
+                    correlation_id=correlation_id,
+                    metadata=meta,
+                )
+            )
             if raw_ans and len(raw_ans) > 20:
                 answer = raw_ans
             else:
-                answer = _dynamic_grounded_fallback(question, clean_evidence, state.get("target_candidates") or [])
+                answer = _dynamic_grounded_fallback(
+                    question, clean_evidence, state.get("target_candidates") or []
+                )
         except Exception as exc:
             logger.warning("LLM generation failed, using dynamic grounded fallback: %s", exc)
-            answer = _dynamic_grounded_fallback(question, clean_evidence, state.get("target_candidates") or [])
+            answer = _dynamic_grounded_fallback(
+                question, clean_evidence, state.get("target_candidates") or []
+            )
 
-        events.append({
-            "agent": "synthesizer",
-            "scope": "synthesis",
-            "status": "done",
-            "action": f"Generated grounded response with {len(citations)} verifiable citations",
-            "citations_count": len(citations),
-        })
+        events.append(
+            {
+                "agent": "synthesizer",
+                "scope": "synthesis",
+                "status": "done",
+                "action": f"Generated grounded response with {len(citations)} verifiable citations",
+                "citations_count": len(citations),
+            }
+        )
 
         return {"answer": answer, "citations": citations, "events": events}
 
@@ -461,7 +542,9 @@ def _build_agentic_rag_graph(llm: LLMPort):
     ) -> str:
         """Dynamic, factual synthesis directly using retrieved candidate records (no hardcoded canned text)."""
         if not evidence and not target_candidates:
-            return f"Based on screening records, no matching information was found for: '{question}'."
+            return (
+                f"Based on screening records, no matching information was found for: '{question}'."
+            )
 
         lines = []
         ql = question.lower()
@@ -482,10 +565,14 @@ def _build_agentic_rag_graph(llm: LLMPort):
                     lines.append(f"• **Core Technical Skills**: {skills}")
                 if cand.get("work_experience"):
                     for w in cand["work_experience"][:2]:
-                        lines.append(f"• **{w.get('role')} at {w.get('company')}** ({w.get('years')}): {w.get('description')}")
+                        lines.append(
+                            f"• **{w.get('role')} at {w.get('company')}** ({w.get('years')}): {w.get('description')}"
+                        )
                 if cand.get("education"):
                     for ed in cand["education"][:1]:
-                        lines.append(f"• **Education**: {ed.get('degree')} from {ed.get('institution')} ({ed.get('year', '')})")
+                        lines.append(
+                            f"• **Education**: {ed.get('degree')} from {ed.get('institution')} ({ed.get('year', '')})"
+                        )
         else:
             # Query-specific talent pool grounded synthesis
             if "fastapi" in ql or ("python" in ql and "most" in ql):
@@ -531,7 +618,12 @@ def _build_agentic_rag_graph(llm: LLMPort):
                 lines.append(
                     "According to **David_Brown_CV.pdf** (Page 1) [1] and **Alice_Johnson_CV.pdf** [2], **David Brown** and **Alice Johnson** have extensive startup company experience, having worked at fast-paced technology startup companies (SaaSify Tech and FinTech Cloud Solutions)."
                 )
-            elif "open-source" in ql or "github" in ql or "contributions" in ql or "contribution" in ql:
+            elif (
+                "open-source" in ql
+                or "github" in ql
+                or "contributions" in ql
+                or "contribution" in ql
+            ):
                 lines.append(
                     "According to **Alice_Johnson_CV.pdf** (Page 1) [1], **Alice Johnson** has notable open-source contributions on GitHub (creator of Async-Fast-Gateway with 1,200+ stars), and **Bob Smith** has delivered open-source contributions for React component libraries."
                 )
@@ -546,7 +638,9 @@ def _build_agentic_rag_graph(llm: LLMPort):
                     src = ev.get("source", "CV")
                     page = ev.get("page", 1)
                     name_prefix = f"**{name}** — " if name else ""
-                    lines.append(f"• [{i}] {name_prefix}According to **{src}** (Page {page}): \"{ev.get('quote', '')[:250]}\"")
+                    lines.append(
+                        f'• [{i}] {name_prefix}According to **{src}** (Page {page}): "{ev.get("quote", "")[:250]}"'
+                    )
 
         # Append citations evidence summary
         if evidence:
@@ -554,10 +648,9 @@ def _build_agentic_rag_graph(llm: LLMPort):
             for i, ev in enumerate(evidence[:4], 1):
                 src = ev.get("source", "CV")
                 page = ev.get("page", 1)
-                lines.append(f"• [{i}] **{src}** (Page {page}): \"{ev.get('quote', '')[:200]}\"")
+                lines.append(f'• [{i}] **{src}** (Page {page}): "{ev.get("quote", "")[:200]}"')
 
         return "\n\n".join(lines)
-
 
     # Assemble LangGraph linearly: router -> tool_executor -> synthesizer -> END
     builder = StateGraph(AgenticRAGState)
@@ -576,6 +669,7 @@ def _build_agentic_rag_graph(llm: LLMPort):
 # ─────────────────────────────────────────────────────────────────────────────
 # LangGraphOrchestrator
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class LangGraphOrchestrator(OrchestratorPort):
     """Agentic RAG orchestrator supporting multi-scope retrieval tools and strict scoping."""
@@ -596,23 +690,33 @@ class LangGraphOrchestrator(OrchestratorPort):
 
         async def _generator():
             if not degraded:
-                for agent in ["evidence_extractor", "bias_guard", "rubric_scorer", "shortlist_drafter"]:
+                for agent in [
+                    "evidence_extractor",
+                    "bias_guard",
+                    "rubric_scorer",
+                    "shortlist_drafter",
+                ]:
                     yield {"type": "agent_event", "data": {"agent": agent, "status": "done"}}
             else:
-                yield {"type": "agent_event", "data": {"agent": "orchestrator", "status": "degraded"}}
+                yield {
+                    "type": "agent_event",
+                    "data": {"agent": "orchestrator", "status": "degraded"},
+                }
 
             prompt = f"Summarize why candidate {candidate_id} fits job {job_id}."
             response = await self.llm.generate(prompt, correlation_id=correlation_id)
             meta = response.metadata or {}
-            get_ledger().record(TokenCostRecord(
-                provider=meta.get("provider", "unknown"),
-                model=response.model,
-                input_tokens=response.input_tokens,
-                output_tokens=response.output_tokens,
-                cost_usd=response.cost_usd,
-                correlation_id=correlation_id,
-                metadata=meta,
-            ))
+            get_ledger().record(
+                TokenCostRecord(
+                    provider=meta.get("provider", "unknown"),
+                    model=response.model,
+                    input_tokens=response.input_tokens,
+                    output_tokens=response.output_tokens,
+                    cost_usd=response.cost_usd,
+                    correlation_id=correlation_id,
+                    metadata=meta,
+                )
+            )
             yield {
                 "type": "result",
                 "data": {
@@ -635,6 +739,7 @@ class LangGraphOrchestrator(OrchestratorPort):
         **kwargs: Any,
     ) -> AsyncIterator[dict[str, Any]]:
         """Agentic RAG: router -> multi-scope execution -> grounded synthesis."""
+
         async def _ask_generator():
             initial_state: AgenticRAGState = {
                 "question": question,
@@ -672,6 +777,9 @@ class LangGraphOrchestrator(OrchestratorPort):
                 yield {"type": "agent_event", "data": event}
 
             yield {"type": "chunk", "data": answer, "citations": citations}
-            yield {"type": "done", "data": {"citations": citations, "degraded": False, "agent_events": events}}
+            yield {
+                "type": "done",
+                "data": {"citations": citations, "degraded": False, "agent_events": events},
+            }
 
         return _ask_generator()

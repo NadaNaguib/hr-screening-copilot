@@ -1,4 +1,5 @@
 """Query review queue with role-aware filters."""
+
 from __future__ import annotations
 
 from uuid import UUID
@@ -56,13 +57,19 @@ async def query_review_queue(
         {
             "id": str(t.id),
             "candidate_id": str(t.candidate_id),
-            "candidate_name": candidate_map.get(t.candidate_id, "Applicant") if t.candidate_id else "Applicant",
+            "candidate_name": candidate_map.get(t.candidate_id, "Applicant")
+            if t.candidate_id
+            else "Applicant",
             "job_id": str(t.job_id) if t.job_id else None,
             "job_title": job_map.get(t.job_id, "General Pool") if t.job_id else "General Pool",
             "status": t.status.value,
             "priority": t.priority,
-            "triage_deadline_at": t.triage_deadline_at.isoformat() if t.triage_deadline_at else None,
-            "decision_deadline_at": t.decision_deadline_at.isoformat() if t.decision_deadline_at else None,
+            "triage_deadline_at": t.triage_deadline_at.isoformat()
+            if t.triage_deadline_at
+            else None,
+            "decision_deadline_at": t.decision_deadline_at.isoformat()
+            if t.decision_deadline_at
+            else None,
             "triage_reason": t.triage_reason,
             "manager_comment": t.manager_comment,
             "admin_override_reason": t.admin_override_reason,

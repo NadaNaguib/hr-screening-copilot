@@ -1,4 +1,5 @@
 """Orchestrator port interface."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -38,4 +39,3 @@ class OrchestratorPort(ABC):
         **kwargs: Any,
     ) -> AsyncIterator[dict[str, Any]]:
         """Yield chat answer chunks and citations."""
-

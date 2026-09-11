@@ -1,4 +1,5 @@
 """Upload a candidate CV, deduplicate by SHA-256, and create a review task."""
+
 from __future__ import annotations
 
 import json
@@ -32,10 +33,30 @@ def _extract_years(text: str) -> float:
 
 
 _MONTHS = {
-    "jan": 1, "january": 1, "feb": 2, "february": 2, "mar": 3, "march": 3,
-    "apr": 4, "april": 4, "may": 5, "jun": 6, "june": 6, "jul": 7, "july": 7,
-    "aug": 8, "august": 8, "sep": 9, "sept": 9, "september": 9, "oct": 10,
-    "october": 10, "nov": 11, "november": 11, "dec": 12, "december": 12,
+    "jan": 1,
+    "january": 1,
+    "feb": 2,
+    "february": 2,
+    "mar": 3,
+    "march": 3,
+    "apr": 4,
+    "april": 4,
+    "may": 5,
+    "jun": 6,
+    "june": 6,
+    "jul": 7,
+    "july": 7,
+    "aug": 8,
+    "august": 8,
+    "sep": 9,
+    "sept": 9,
+    "september": 9,
+    "oct": 10,
+    "october": 10,
+    "nov": 11,
+    "november": 11,
+    "dec": 12,
+    "december": 12,
 }
 
 _PRESENT_TOKENS = {"present", "current", "now", "today", "ongoing"}
@@ -141,14 +162,60 @@ def _years_from_ranges(text: str) -> float:
 def _extract_skills_fallback(text: str) -> list[str]:
     """Regex fallback for skill extraction when LLM is unavailable."""
     common = [
-        "python", "javascript", "typescript", "java", "c++", "c#", "go", "rust",
-        "react", "node.js", "sql", "postgresql", "docker", "kubernetes", "aws",
-        "azure", "gcp", "machine learning", "data analysis", "project management",
-        "agile", "scrum", "leadership", "communication", "teamwork", "fastapi",
-        "flask", "django", "html", "css", "tailwind", "bootstrap", "git", "linux",
-        "nginx", "redis", "mongodb", "mysql", "sqlite", "opencv", "tensorflow",
-        "pytorch", "keras", "pandas", "numpy", "matplotlib", "seaborn", "excel",
-        "rest api", "graphql", "microservices", "ci/cd", "jenkins", "github actions",
+        "python",
+        "javascript",
+        "typescript",
+        "java",
+        "c++",
+        "c#",
+        "go",
+        "rust",
+        "react",
+        "node.js",
+        "sql",
+        "postgresql",
+        "docker",
+        "kubernetes",
+        "aws",
+        "azure",
+        "gcp",
+        "machine learning",
+        "data analysis",
+        "project management",
+        "agile",
+        "scrum",
+        "leadership",
+        "communication",
+        "teamwork",
+        "fastapi",
+        "flask",
+        "django",
+        "html",
+        "css",
+        "tailwind",
+        "bootstrap",
+        "git",
+        "linux",
+        "nginx",
+        "redis",
+        "mongodb",
+        "mysql",
+        "sqlite",
+        "opencv",
+        "tensorflow",
+        "pytorch",
+        "keras",
+        "pandas",
+        "numpy",
+        "matplotlib",
+        "seaborn",
+        "excel",
+        "rest api",
+        "graphql",
+        "microservices",
+        "ci/cd",
+        "jenkins",
+        "github actions",
     ]
     lower = text.lower()
     found = [skill for skill in common if skill in lower]
@@ -166,7 +233,7 @@ async def _extract_skills_with_llm(text: str, llm: Any, correlation_id: str = ""
     prompt = (
         "You are a resume parser. Extract the professional skills, technologies, programming languages, "
         "frameworks, databases, cloud platforms, tools, and methodologies mentioned in the CV below. "
-        "Return ONLY a single JSON array of strings. Example: [\"Python\", \"FastAPI\", \"React\", \"Docker\", \"AWS\"]. "
+        'Return ONLY a single JSON array of strings. Example: ["Python", "FastAPI", "React", "Docker", "AWS"]. '
         "No explanations, no code fences, no markdown, no additional text.\n\nCV TEXT:\n"
         + text[:8000]
     )
@@ -250,7 +317,10 @@ async def upload_candidate(
         existing.email = email or existing.email
         existing.raw_text = raw_text or existing.raw_text
         existing.years_of_experience = _extract_years(raw_text) or existing.years_of_experience
-        existing.skills = await _extract_skills_with_llm(raw_text, container.llm, correlation_id) or existing.skills
+        existing.skills = (
+            await _extract_skills_with_llm(raw_text, container.llm, correlation_id)
+            or existing.skills
+        )
         existing.priority = priority or existing.priority
         await container.candidate_repository.update_candidate(existing)
         candidate = existing
@@ -272,8 +342,13 @@ async def upload_candidate(
 
     # Store CV chunks in vector store for retrieval
     chunks = _chunk_text(raw_text)
-    chunk_data = [(text, None, {"type": "cv", "filename": filename, "index": i}) for i, (text, _) in enumerate(chunks)]
-    embeddings = await container.embedding.embed([c[0] for c in chunk_data], correlation_id=correlation_id)
+    chunk_data = [
+        (text, None, {"type": "cv", "filename": filename, "index": i})
+        for i, (text, _) in enumerate(chunks)
+    ]
+    embeddings = await container.embedding.embed(
+        [c[0] for c in chunk_data], correlation_id=correlation_id
+    )
     import base64
     import os
 

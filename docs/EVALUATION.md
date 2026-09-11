@@ -89,7 +89,9 @@ All 10 adversarial security attacks were gracefully intercepted and rejected by 
 - **Root Cause**:
   In `src/copilot/agents/orchestrator.py` (line 133), the router classifies any query containing `"rubric"` as a `job_inquiry`:
   ```python
-  is_job_inquiry = any(w in ql for w in ["job description", "requirements for", "role require", "rubric", "criteria"])
+  is_job_inquiry = any(
+      w in ql for w in ["job description", "requirements for", "role require", "rubric", "criteria"]
+  )
   ```
   Consequently, it executes `job_rubric_tool`, which retrieves the rubric's *criteria definitions* (weights, score ranges, keywords), but fails to retrieve *candidate evaluation scores* (`candidates.overall_score` or `review_tasks.rubric_scores`). The model therefore lacks candidate scoring records in its prompt context.
 

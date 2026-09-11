@@ -1,4 +1,5 @@
 """Token/cost accounting and failure tracking with disk persistence."""
+
 from __future__ import annotations
 
 import json
@@ -122,13 +123,26 @@ class TokenCostLedger:
 
     def summary(self) -> dict[str, Any]:
         if not self.records:
-            return {"calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0, "models": {}}
+            return {
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "cost_usd": 0.0,
+                "models": {},
+            }
         models: dict[str, dict[str, Any]] = {}
         for r in self.records:
             key = f"{r.provider}:{r.model}"
             entry = models.setdefault(
                 key,
-                {"provider": r.provider, "model": r.model, "calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0},
+                {
+                    "provider": r.provider,
+                    "model": r.model,
+                    "calls": 0,
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "cost_usd": 0.0,
+                },
             )
             entry["calls"] += 1
             entry["input_tokens"] += r.input_tokens

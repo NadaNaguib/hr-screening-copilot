@@ -1,4 +1,5 @@
 """Gemini REST-based LLM adapter."""
+
 from __future__ import annotations
 
 import os
@@ -38,7 +39,9 @@ class GeminiRestAdapter(LLMPort):
     def _headers(self) -> dict[str, str]:
         return {"Content-Type": "application/json"}
 
-    def _payload(self, prompt: str, system_instruction: str | None, temperature: float, max_tokens: int) -> dict[str, Any]:
+    def _payload(
+        self, prompt: str, system_instruction: str | None, temperature: float, max_tokens: int
+    ) -> dict[str, Any]:
         parts: list[dict[str, Any]] = [{"text": prompt}]
         system_part = {"parts": [{"text": system_instruction or ""}]}
         return {
@@ -96,7 +99,9 @@ class GeminiRestAdapter(LLMPort):
         correlation_id: str = "",
     ) -> AsyncIterator[LLMResponse]:
         # REST fallback does not stream easily; yield single chunk.
-        response = await self.generate(prompt, system_instruction, temperature, max_tokens, correlation_id)
+        response = await self.generate(
+            prompt, system_instruction, temperature, max_tokens, correlation_id
+        )
         yield response
 
     def _stub(self, prompt: str) -> LLMResponse:

@@ -1,4 +1,5 @@
 """FastAPI application factory."""
+
 from __future__ import annotations
 
 import uuid
@@ -77,11 +78,19 @@ def create_app() -> FastAPI:
         if isinstance(exc, ValueError):
             return JSONResponse(
                 status_code=400,
-                content={"error_code": "validation_error", "message": str(exc), "correlation_id": cid},
+                content={
+                    "error_code": "validation_error",
+                    "message": str(exc),
+                    "correlation_id": cid,
+                },
             )
         return JSONResponse(
             status_code=500,
-            content={"error_code": "internal_error", "message": "Internal server error", "correlation_id": cid},
+            content={
+                "error_code": "internal_error",
+                "message": "Internal server error",
+                "correlation_id": cid,
+            },
         )
 
     app.include_router(health.router, prefix="/api/v1", tags=["health"])

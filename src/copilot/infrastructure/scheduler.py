@@ -1,4 +1,5 @@
 """APScheduler jobs for SLA breach monitoring."""
+
 from __future__ import annotations
 
 from datetime import datetime

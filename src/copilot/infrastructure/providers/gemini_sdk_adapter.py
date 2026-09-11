@@ -1,4 +1,5 @@
 """Gemini SDK-based LLM adapter."""
+
 from __future__ import annotations
 
 import os

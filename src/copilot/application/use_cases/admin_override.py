@@ -1,4 +1,5 @@
 """Admin break-glass override with mandatory reason and audit."""
+
 from __future__ import annotations
 
 from uuid import UUID

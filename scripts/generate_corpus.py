@@ -5,6 +5,7 @@ Usage:
     . .venv/bin/activate
     python scripts/generate_corpus.py --output data/corpus --count 40
 """
+
 from __future__ import annotations
 
 import argparse
@@ -13,14 +14,54 @@ import random
 from pathlib import Path
 
 FIRST_NAMES = ["Alice", "Bob", "Carol", "David", "Eva", "Frank", "Grace", "Henry", "Irene", "Jack"]
-LAST_NAMES = ["Smith", "Johnson", "Brown", "Taylor", "Anderson", "White", "Harris", "Martin", "Thompson", "Garcia"]
-SKILLS_POOL = [
-    "Python", "FastAPI", "Django", "Flask", "SQLAlchemy", "PostgreSQL", "Docker",
-    "Kubernetes", "Terraform", "AWS", "GCP", "React", "TypeScript", "Tailwind CSS",
-    "Node.js", "GraphQL", "Redis", "Celery", "Kafka", "Elasticsearch", "Pytest",
-    "CI/CD", "GitHub Actions", "GitLab CI", "Prometheus", "Grafana", "LLMs",
+LAST_NAMES = [
+    "Smith",
+    "Johnson",
+    "Brown",
+    "Taylor",
+    "Anderson",
+    "White",
+    "Harris",
+    "Martin",
+    "Thompson",
+    "Garcia",
 ]
-ROLES = ["Backend Engineer", "Frontend Developer", "DevOps Engineer", "Full-Stack Developer", "Data Engineer"]
+SKILLS_POOL = [
+    "Python",
+    "FastAPI",
+    "Django",
+    "Flask",
+    "SQLAlchemy",
+    "PostgreSQL",
+    "Docker",
+    "Kubernetes",
+    "Terraform",
+    "AWS",
+    "GCP",
+    "React",
+    "TypeScript",
+    "Tailwind CSS",
+    "Node.js",
+    "GraphQL",
+    "Redis",
+    "Celery",
+    "Kafka",
+    "Elasticsearch",
+    "Pytest",
+    "CI/CD",
+    "GitHub Actions",
+    "GitLab CI",
+    "Prometheus",
+    "Grafana",
+    "LLMs",
+]
+ROLES = [
+    "Backend Engineer",
+    "Frontend Developer",
+    "DevOps Engineer",
+    "Full-Stack Developer",
+    "Data Engineer",
+]
 EDUCATION = ["B.Sc. Computer Science", "M.Sc. Software Engineering", "B.Sc. Information Technology"]
 
 
