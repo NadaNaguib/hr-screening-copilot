@@ -6,7 +6,7 @@ import hashlib
 from io import BytesIO
 
 from docx import Document as DocxDocument
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 
 from copilot.domain.errors import UnparseableDocumentError
 
