@@ -17,6 +17,36 @@ import {
 } from "lucide-react"
 import { CvViewerModal } from "../components/CvViewerModal"
 
+// Formats advertised as supported in the UI. The extension is authoritative
+// (browsers sometimes report generic/empty MIME types for Office documents).
+const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".doc", ".txt"]
+const SUPPORTED_MIME_TYPES = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/msword",
+  "application/vnd.ms-word",
+  "text/plain",
+]
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
+
+function isSupportedFile(f: File): boolean {
+  const name = f.name.toLowerCase()
+  if (SUPPORTED_EXTENSIONS.some((ext) => name.endsWith(ext))) return true
+  const type = (f.type || "").toLowerCase()
+  if (type.startsWith("text/")) return true
+  return SUPPORTED_MIME_TYPES.includes(type)
+}
+
+function validateCvFile(f: File): string | null {
+  if (!isSupportedFile(f)) {
+    return `Unsupported file format "${f.name}". Please upload a PDF, DOCX, or TXT file.`
+  }
+  if (f.size > MAX_FILE_SIZE_BYTES) {
+    return `File is too large (${(f.size / 1024 / 1024).toFixed(1)}MB). Maximum size is 10MB.`
+  }
+  return null
+}
+
 interface Job {
   id: string
   title: string
@@ -180,12 +210,20 @@ export function JobsAndCandidates() {
       toast.error("Select a job before uploading a candidate")
       return
     }
+    const fileError = validateCvFile(file)
+    if (fileError) {
+      toast.error(fileError)
+      return
+    }
     setSubmitting(true)
     const form = new FormData()
+    // The backend reads the file from the multipart field named "file" and the
+    // job id from either the form field or the query string.
     form.append("file", file)
     form.append("job_id", selectedJob)
     try {
-      await apiClient.post("/candidates", form, { headers: { "Content-Type": "multipart/form-data" } })
+      // No manual Content-Type: the browser adds `multipart/form-data; boundary=...`.
+      await apiClient.post("/candidates", form, { params: { job_id: selectedJob } })
       setFile(null)
       toast.success("Candidate CV uploaded successfully")
       await fetchCandidates()
@@ -379,8 +417,20 @@ export function JobsAndCandidates() {
                 <input
                   type="file"
                   id="cv-file-input"
-                  accept=".pdf,.docx,.txt"
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  accept=".pdf,.docx,.doc,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/plain"
+                  onChange={(e) => {
+                    const picked = e.target.files?.[0] || null
+                    if (picked) {
+                      const fileError = validateCvFile(picked)
+                      if (fileError) {
+                        toast.error(fileError)
+                        e.target.value = ""
+                        setFile(null)
+                        return
+                      }
+                    }
+                    setFile(picked)
+                  }}
                   className="hidden"
                 />
                 <label htmlFor="cv-file-input" className="cursor-pointer block">

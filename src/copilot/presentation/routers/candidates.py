@@ -3,15 +3,21 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Response, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 
 from copilot.application.use_cases.upload_candidate import upload_candidate
 from copilot.infrastructure.di import Container
 from copilot.infrastructure.observability.correlation import get_correlation_id
+from copilot.infrastructure.parsing.parser import is_supported_document
 from copilot.presentation.dependencies import get_container, get_current_user, require_roles
 
 router = APIRouter()
+
+_SUPPORTED_FORMATS_HINT = "PDF, DOCX, or TXT"
+# Multipart field names we accept for the resume file (the React client sends "file").
+_ACCEPTED_FILE_FIELDS = ("file", "cv", "resume", "upload", "document")
+_MAX_PART_SIZE_BYTES = 10 * 1024 * 1024
 
 
 class CandidateUploadResponse(BaseModel):
@@ -25,24 +31,92 @@ class CandidateUploadResponse(BaseModel):
 
 @router.post("/candidates")
 async def upload_candidate_endpoint(
+    request: Request,
     job_id: UUID | None = None,
-    file: UploadFile | None = None,
     container: Container = Depends(get_container),
     user: dict = Depends(require_roles("admin", "hr_recruiter")),
 ) -> dict:
-    if file is None:
-        return {"error": "No file uploaded"}
-    content = await file.read()
-    result = await upload_candidate(
+    # Parse the multipart form directly. This keeps the handler independent of
+    # FastAPI's form/file parameter inference and tolerant to field naming, so
+    # the uploaded payload can never be silently dropped.
+    try:
+        form = await request.form(max_part_size=_MAX_PART_SIZE_BYTES)
+    except TypeError:  # older Starlette without max_part_size
+        form = await request.form()
+
+    upload = None
+    for field_name in _ACCEPTED_FILE_FIELDS:
+        value = form.get(field_name)
+        if value is not None and hasattr(value, "read"):
+            upload = value
+            break
+
+    if upload is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "missing_file",
+                "message": (
+                    "No file uploaded. Attach a resume as a multipart field named "
+                    f"'file' (accepted formats: {_SUPPORTED_FORMATS_HINT})."
+                ),
+            },
+        )
+
+    filename = (getattr(upload, "filename", None) or "cv.txt").strip() or "cv.txt"
+    mime_type = getattr(upload, "content_type", None) or "application/octet-stream"
+    content = await upload.read()
+
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error_code": "empty_file", "message": "The uploaded file is empty"},
+        )
+
+    if not is_supported_document(filename, mime_type):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "unsupported_file_type",
+                "message": (
+                    f"Unsupported file type '{filename}'. "
+                    f"Supported formats: {_SUPPORTED_FORMATS_HINT}."
+                ),
+            },
+        )
+
+    form_job_id = form.get("job_id")
+    if hasattr(form_job_id, "read"):
+        form_job_id = None
+    raw_job_id = form_job_id or (str(job_id) if job_id else None)
+    if not raw_job_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "missing_job_id",
+                "message": "A job_id is required so the candidate is linked to a vacancy.",
+            },
+        )
+    try:
+        resolved_job_id = UUID(str(raw_job_id))
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "invalid_job_id",
+                "message": f"Invalid job_id '{raw_job_id}'.",
+            },
+        ) from None
+
+    return await upload_candidate(
         container=container,
-        filename=file.filename or "cv.txt",
+        filename=filename,
         content=content,
-        mime_type=file.content_type or "application/octet-stream",
-        job_id=job_id,
-        full_name=file.filename or "",
+        mime_type=mime_type,
+        job_id=resolved_job_id,
+        full_name=filename,
         correlation_id=get_correlation_id(),
     )
-    return result
 
 
 @router.get("/candidates")

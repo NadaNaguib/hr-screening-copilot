@@ -9,9 +9,11 @@ declare module "axios" {
 
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "/api/v1",
-  headers: {
-    "Content-Type": "application/json",
-  },
+  // NOTE: Do not set a global Content-Type here. Axios sets `application/json`
+  // for object payloads, and for FormData it clears the header so the browser
+  // can generate the required `multipart/form-data; boundary=...` value. A
+  // hard-coded header here would otherwise be sent without a boundary and break
+  // file uploads.
 })
 
 apiClient.interceptors.request.use((config) => {
