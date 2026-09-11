@@ -1,17 +1,24 @@
 """Candidate endpoints."""
+
 from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Response, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 
 from copilot.application.use_cases.upload_candidate import upload_candidate
 from copilot.infrastructure.di import Container
 from copilot.infrastructure.observability.correlation import get_correlation_id
+from copilot.infrastructure.parsing.parser import is_supported_document
 from copilot.presentation.dependencies import get_container, get_current_user, require_roles
 
 router = APIRouter()
+
+_SUPPORTED_FORMATS_HINT = "PDF, DOCX, or TXT"
+# Multipart field names we accept for the resume file (the React client sends "file").
+_ACCEPTED_FILE_FIELDS = ("file", "cv", "resume", "upload", "document")
+_MAX_PART_SIZE_BYTES = 10 * 1024 * 1024
 
 
 class CandidateUploadResponse(BaseModel):
@@ -25,24 +32,92 @@ class CandidateUploadResponse(BaseModel):
 
 @router.post("/candidates")
 async def upload_candidate_endpoint(
+    request: Request,
     job_id: UUID | None = None,
-    file: UploadFile | None = None,
     container: Container = Depends(get_container),
     user: dict = Depends(require_roles("admin", "hr_recruiter")),
 ) -> dict:
-    if file is None:
-        return {"error": "No file uploaded"}
-    content = await file.read()
-    result = await upload_candidate(
+    # Parse the multipart form directly. This keeps the handler independent of
+    # FastAPI's form/file parameter inference and tolerant to field naming, so
+    # the uploaded payload can never be silently dropped.
+    try:
+        form = await request.form(max_part_size=_MAX_PART_SIZE_BYTES)
+    except TypeError:  # older Starlette without max_part_size
+        form = await request.form()
+
+    upload = None
+    for field_name in _ACCEPTED_FILE_FIELDS:
+        value = form.get(field_name)
+        if value is not None and hasattr(value, "read"):
+            upload = value
+            break
+
+    if upload is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "missing_file",
+                "message": (
+                    "No file uploaded. Attach a resume as a multipart field named "
+                    f"'file' (accepted formats: {_SUPPORTED_FORMATS_HINT})."
+                ),
+            },
+        )
+
+    filename = (getattr(upload, "filename", None) or "cv.txt").strip() or "cv.txt"
+    mime_type = getattr(upload, "content_type", None) or "application/octet-stream"
+    content = await upload.read()
+
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error_code": "empty_file", "message": "The uploaded file is empty"},
+        )
+
+    if not is_supported_document(filename, mime_type):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "unsupported_file_type",
+                "message": (
+                    f"Unsupported file type '{filename}'. "
+                    f"Supported formats: {_SUPPORTED_FORMATS_HINT}."
+                ),
+            },
+        )
+
+    form_job_id = form.get("job_id")
+    if hasattr(form_job_id, "read"):
+        form_job_id = None
+    raw_job_id = form_job_id or (str(job_id) if job_id else None)
+    if not raw_job_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "missing_job_id",
+                "message": "A job_id is required so the candidate is linked to a vacancy.",
+            },
+        )
+    try:
+        resolved_job_id = UUID(str(raw_job_id))
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "invalid_job_id",
+                "message": f"Invalid job_id '{raw_job_id}'.",
+            },
+        ) from None
+
+    return await upload_candidate(
         container=container,
-        filename=file.filename or "cv.txt",
+        filename=filename,
         content=content,
-        mime_type=file.content_type or "application/octet-stream",
-        job_id=job_id,
-        full_name=file.filename or "",
+        mime_type=mime_type,
+        job_id=resolved_job_id,
+        full_name=filename,
         correlation_id=get_correlation_id(),
     )
-    return result
 
 
 @router.get("/candidates")
@@ -98,6 +173,7 @@ async def get_candidate_cv(
     user: dict = Depends(get_current_user),
 ) -> dict:
     from sqlalchemy import select
+
     from copilot.domain.errors import NotFoundError
     from copilot.infrastructure.db.models import DocumentORM
 
@@ -109,7 +185,9 @@ async def get_candidate_cv(
     doc = None
     for d in docs_res.scalars().all():
         meta = d.metadata_ or {}
-        if str(meta.get("candidate_id")) == str(candidate_id) or d.filename.startswith(cand.full_name.replace(" ", "_")):
+        if str(meta.get("candidate_id")) == str(candidate_id) or d.filename.startswith(
+            cand.full_name.replace(" ", "_")
+        ):
             doc = d
             break
 
@@ -138,6 +216,7 @@ async def download_candidate_cv(
     user: dict = Depends(get_current_user),
 ) -> Response:
     from sqlalchemy import select
+
     from copilot.domain.errors import NotFoundError
     from copilot.infrastructure.db.models import DocumentORM
 
@@ -149,7 +228,9 @@ async def download_candidate_cv(
     doc = None
     for d in docs_res.scalars().all():
         meta = d.metadata_ or {}
-        if str(meta.get("candidate_id")) == str(candidate_id) or d.filename.startswith(cand.full_name.replace(" ", "_")):
+        if str(meta.get("candidate_id")) == str(candidate_id) or d.filename.startswith(
+            cand.full_name.replace(" ", "_")
+        ):
             doc = d
             break
 
@@ -171,7 +252,9 @@ async def get_candidate_cv_pdf(
 ) -> Response:
     import base64
     import os
+
     from sqlalchemy import select
+
     from copilot.domain.errors import NotFoundError
     from copilot.infrastructure.db.models import DocumentORM
     from copilot.infrastructure.parsing.pdf_generator import generate_cv_pdf
@@ -184,7 +267,9 @@ async def get_candidate_cv_pdf(
     doc = None
     for d in docs_res.scalars().all():
         meta = d.metadata_ or {}
-        if str(meta.get("candidate_id")) == str(candidate_id) or d.filename.startswith(cand.full_name.replace(" ", "_")):
+        if str(meta.get("candidate_id")) == str(candidate_id) or d.filename.startswith(
+            cand.full_name.replace(" ", "_")
+        ):
             doc = d
             break
 
@@ -192,7 +277,11 @@ async def get_candidate_cv_pdf(
     meta = (doc.metadata_ if doc else {}) or {}
     if "pdf_bytes_b64" in meta:
         pdf_bytes = base64.b64decode(meta["pdf_bytes_b64"])
-        filename = doc.filename if doc and doc.filename.endswith(".pdf") else f"{cand.full_name.replace(' ', '_')}_CV.pdf"
+        filename = (
+            doc.filename
+            if doc and doc.filename.endswith(".pdf")
+            else f"{cand.full_name.replace(' ', '_')}_CV.pdf"
+        )
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
@@ -201,12 +290,14 @@ async def get_candidate_cv_pdf(
 
     # 2. Check if cached on disk
     disk_path = f"/tmp/cv_storage/{cand.id}_{cand.full_name.replace(' ', '_')}_CV.pdf"
-    if os.path.exists(disk_path):
-        with open(disk_path, "rb") as f:
+    if os.path.exists(disk_path):  # noqa: ASYNC230, ASYNC240
+        with open(disk_path, "rb") as f:  # noqa: ASYNC230, ASYNC240
             return Response(
                 content=f.read(),
                 media_type="application/pdf",
-                headers={"Content-Disposition": f'inline; filename="{cand.full_name.replace(" ", "_")}_CV.pdf"'},
+                headers={
+                    "Content-Disposition": f'inline; filename="{cand.full_name.replace(" ", "_")}_CV.pdf"'
+                },
             )
 
     # 3. Generate authentic PDF resume using reportlab
@@ -233,6 +324,7 @@ async def get_document_by_name(
     user: dict = Depends(get_current_user),
 ) -> dict:
     from sqlalchemy import select
+
     from copilot.infrastructure.db.models import DocumentORM
 
     stmt = select(DocumentORM).where(DocumentORM.filename.ilike(f"%{filename}%")).limit(1)

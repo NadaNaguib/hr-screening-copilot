@@ -1,4 +1,5 @@
 """Review queue and decision endpoints."""
+
 from __future__ import annotations
 
 from uuid import UUID
@@ -132,6 +133,7 @@ async def export_shortlist_endpoint(
 ):
     """Export a finalized shortlist as CSV or PDF."""
     from fastapi.responses import Response
+
     from copilot.application.use_cases.export_shortlist import export_shortlist
 
     data, content_type = await export_shortlist(

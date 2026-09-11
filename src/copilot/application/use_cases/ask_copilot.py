@@ -1,4 +1,5 @@
 """Ask the copilot a question using Agentic RAG with multi-scope retrieval."""
+
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
@@ -20,15 +21,35 @@ def check_query_safety_and_scope(q: str) -> str | None:
         return "I cannot comply with this request. I am not able to execute inappropriate instructions or bypass safety guidelines, and I will not provide personal address data."
 
     # 2. PII extraction (email, phone, address)
-    if any(p in ql for p in ["email address", "phone number", "home address", "personal address", "contact info"]):
+    if any(
+        p in ql
+        for p in [
+            "email address",
+            "phone number",
+            "home address",
+            "personal address",
+            "contact info",
+        ]
+    ):
         return "I cannot provide contact information or email addresses. It is not permitted under candidate data privacy policy."
 
     # 3. Protected attributes (nationality, gender, age)
     if any(p in ql for p in ["egypt or arab", "nationality", "country of origin", "countries"]):
         return "I cannot filter candidates by nationality or geographic origin. Nationality is a protected attribute and not relevant to professional qualifications; our screening guidelines do not consider nationality."
-    if any(p in ql for p in ["male candidates", "female candidates", "only male", "only female", "gender"]):
+    if any(
+        p in ql
+        for p in ["male candidates", "female candidates", "only male", "only female", "gender"]
+    ):
         return "I cannot comply with this request. We do not filter candidates by gender; gender is a protected attribute and screening is strictly audited against bias."
-    if any(p in ql for p in ["youngest candidate", "oldest candidate", "age of the candidate", "candidate's age"]):
+    if any(
+        p in ql
+        for p in [
+            "youngest candidate",
+            "oldest candidate",
+            "age of the candidate",
+            "candidate's age",
+        ]
+    ):
         return "I cannot evaluate candidate age. Age is a protected characteristic, not relevant to job requirements, and we do not filter candidates on this basis."
 
     # 4. Hallucination check & Impossible queries & Unknown entities
@@ -65,7 +86,11 @@ async def ask_copilot(
 
     ai_config = AIConfigManager().config
     if not ai_config.ai_enabled:
-        yield {"type": "answer_chunk", "data": "AI is currently disabled by the administrator.", "citations": []}
+        yield {
+            "type": "answer_chunk",
+            "data": "AI is currently disabled by the administrator.",
+            "citations": [],
+        }
         yield {"type": "done", "data": "AI disabled"}
         return
 
@@ -104,7 +129,12 @@ async def ask_copilot(
             name_file = f"%{name_parts[0]}%"
             result = await container.session.execute(
                 sa_text(sql),
-                {"embedding": vector_str, "name_pattern": name_pattern, "name_file": name_file, "limit": top_k},
+                {
+                    "embedding": vector_str,
+                    "name_pattern": name_pattern,
+                    "name_file": name_file,
+                    "limit": top_k,
+                },
             )
         else:
             sql = """
@@ -121,7 +151,11 @@ async def ask_copilot(
             """
             result = await container.session.execute(
                 sa_text(sql),
-                {"embedding": vector_str, "job_id": str(job_id) if job_id else None, "limit": top_k},
+                {
+                    "embedding": vector_str,
+                    "job_id": str(job_id) if job_id else None,
+                    "limit": top_k,
+                },
             )
 
         rows = []
@@ -131,17 +165,19 @@ async def ask_copilot(
             candidate_id_val = ""
             if isinstance(doc_meta, dict):
                 candidate_id_val = str(doc_meta.get("candidate_id") or "")
-            rows.append({
-                "id": str(row["id"]),
-                "chunk_id": str(row["id"]),
-                "quote": row["text"] or "",
-                "source": row.get("filename") or meta.get("source_document") or "Resume.pdf",
-                "page": int(row["page_number"] or 1),
-                "candidate_id": candidate_id_val,
-                "full_context": row.get("raw_text") or row["text"] or "",
-                "candidate_name": row.get("full_name") or "",
-                "confidence": max(0.0, 1.0 - float(row["distance"])),
-            })
+            rows.append(
+                {
+                    "id": str(row["id"]),
+                    "chunk_id": str(row["id"]),
+                    "quote": row["text"] or "",
+                    "source": row.get("filename") or meta.get("source_document") or "Resume.pdf",
+                    "page": int(row["page_number"] or 1),
+                    "candidate_id": candidate_id_val,
+                    "full_context": row.get("raw_text") or row["text"] or "",
+                    "candidate_name": row.get("full_name") or "",
+                    "confidence": max(0.0, 1.0 - float(row["distance"])),
+                }
+            )
         return rows
 
     async def _candidate_fn(name: str | None) -> list[dict[str, Any]]:
@@ -158,28 +194,28 @@ async def ask_copilot(
             WHERE c.full_name ILIKE :pattern
             LIMIT 5
         """
-        result = await container.session.execute(
-            sa_text(sql), {"pattern": f"%{name}%"}
-        )
+        result = await container.session.execute(sa_text(sql), {"pattern": f"%{name}%"})
         rows = []
         for row in result.mappings().all():
-            rows.append({
-                "id": str(row["id"]),
-                "chunk_id": str(row["id"]),
-                "quote": (
-                    f"Candidate: {row['full_name']} | Status: {row['status']} | "
-                    f"Score: {row['overall_score'] or 'N/A'} | Job: {row['job_title'] or 'Unassigned'}"
-                ),
-                "source": "Candidate Profile (Database)",
-                "page": 1,
-                "candidate_id": str(row["id"]),
-                "full_context": (
-                    f"Full Name: {row['full_name']}\nStatus: {row['status']}\n"
-                    f"Overall Score: {row['overall_score'] or 'Not scored'}\n"
-                    f"Applied Job: {row['job_title'] or 'No job assigned'}"
-                ),
-                "scope": "candidate_profile",
-            })
+            rows.append(
+                {
+                    "id": str(row["id"]),
+                    "chunk_id": str(row["id"]),
+                    "quote": (
+                        f"Candidate: {row['full_name']} | Status: {row['status']} | "
+                        f"Score: {row['overall_score'] or 'N/A'} | Job: {row['job_title'] or 'Unassigned'}"
+                    ),
+                    "source": "Candidate Profile (Database)",
+                    "page": 1,
+                    "candidate_id": str(row["id"]),
+                    "full_context": (
+                        f"Full Name: {row['full_name']}\nStatus: {row['status']}\n"
+                        f"Overall Score: {row['overall_score'] or 'Not scored'}\n"
+                        f"Applied Job: {row['job_title'] or 'No job assigned'}"
+                    ),
+                    "scope": "candidate_profile",
+                }
+            )
         return rows
 
     async def _job_fn(query: str, job_id: UUID | None = None) -> list[dict[str, Any]]:
@@ -208,25 +244,24 @@ async def ask_copilot(
         rows = []
         for row in result.mappings().all():
             skills = row["skills"] or []
-            if isinstance(skills, list):
-                skills_str = ", ".join(skills)
-            else:
-                skills_str = str(skills)
-            rows.append({
-                "id": str(row["id"]),
-                "chunk_id": str(row["id"]),
-                "quote": f"Job: {row['title']} ({row['department']}) — Requires: {skills_str}",
-                "source": f"Job Description: {row['title']}",
-                "page": 1,
-                "candidate_id": "",
-                "full_context": (
-                    f"Title: {row['title']}\nDepartment: {row['department']}\n"
-                    f"Location: {row['location']}\nPriority: {row['priority']}\n"
-                    f"Required Skills: {skills_str}\n"
-                    f"Description: {(row['description'] or '')[:500]}"
-                ),
-                "scope": "job_requirements",
-            })
+            skills_str = ", ".join(skills) if isinstance(skills, list) else str(skills)
+            rows.append(
+                {
+                    "id": str(row["id"]),
+                    "chunk_id": str(row["id"]),
+                    "quote": f"Job: {row['title']} ({row['department']}) — Requires: {skills_str}",
+                    "source": f"Job Description: {row['title']}",
+                    "page": 1,
+                    "candidate_id": "",
+                    "full_context": (
+                        f"Title: {row['title']}\nDepartment: {row['department']}\n"
+                        f"Location: {row['location']}\nPriority: {row['priority']}\n"
+                        f"Required Skills: {skills_str}\n"
+                        f"Description: {(row['description'] or '')[:500]}"
+                    ),
+                    "scope": "job_requirements",
+                }
+            )
         return rows
 
     async def _rubric_fn(job_id: UUID | None = None) -> list[dict[str, Any]]:
@@ -261,28 +296,27 @@ async def ask_copilot(
         rows = []
         for row in result.mappings().all():
             keywords = row["keywords"] or []
-            if isinstance(keywords, list):
-                kw_str = ", ".join(keywords)
-            else:
-                kw_str = str(keywords)
-            rows.append({
-                "id": str(row["id"]),
-                "chunk_id": str(row["id"]),
-                "quote": (
-                    f"Criterion: {row['name']} (Weight: {row['weight']}, "
-                    f"Required: {row['required']}) — Keywords: {kw_str}"
-                ),
-                "source": f"Rubric: {row['rubric_name']} for {row['job_title']}",
-                "page": 1,
-                "candidate_id": "",
-                "full_context": (
-                    f"Criterion: {row['name']}\nDescription: {row['description'] or ''}\n"
-                    f"Weight: {row['weight']} | Required: {row['required']}\n"
-                    f"Score Range: {row['min_score']} - {row['max_score']}\n"
-                    f"Keywords: {kw_str}"
-                ),
-                "scope": "rubric",
-            })
+            kw_str = ", ".join(keywords) if isinstance(keywords, list) else str(keywords)
+            rows.append(
+                {
+                    "id": str(row["id"]),
+                    "chunk_id": str(row["id"]),
+                    "quote": (
+                        f"Criterion: {row['name']} (Weight: {row['weight']}, "
+                        f"Required: {row['required']}) — Keywords: {kw_str}"
+                    ),
+                    "source": f"Rubric: {row['rubric_name']} for {row['job_title']}",
+                    "page": 1,
+                    "candidate_id": "",
+                    "full_context": (
+                        f"Criterion: {row['name']}\nDescription: {row['description'] or ''}\n"
+                        f"Weight: {row['weight']} | Required: {row['required']}\n"
+                        f"Score Range: {row['min_score']} - {row['max_score']}\n"
+                        f"Keywords: {kw_str}"
+                    ),
+                    "scope": "rubric",
+                }
+            )
         return rows
 
     # ─── Run Agentic RAG or plain RAG ─────────────────────────────────────────
@@ -317,7 +351,9 @@ async def ask_copilot(
                 done_data = event.get("data", {})
                 if not chunk_received:
                     # Fallback: plain RAG if agentic produced nothing
-                    evidence = await container.hybrid_search.search(question, job_id=job_id, top_k=5)
+                    evidence = await container.hybrid_search.search(
+                        question, job_id=job_id, top_k=5
+                    )
                     fallback_citations = [
                         {
                             "id": str(e.id),
@@ -335,13 +371,15 @@ async def ask_copilot(
                         "data": f"Based on screening records: {question}",
                         "citations": fallback_citations,
                     }
-                citations_final = done_data.get("citations", []) if isinstance(done_data, dict) else []
+                citations_final = (
+                    done_data.get("citations", []) if isinstance(done_data, dict) else []
+                )
                 yield {"type": "done", "data": done_data, "citations": citations_final}
     else:
         # Plain RAG path
         evidence = await container.hybrid_search.search(question, job_id=job_id, top_k=5)
         context = "\n\n".join(
-            f"[{i+1}] Document: {e.source_document} | Page: {e.page_number or 1}\nQuote: \"{e.quote}\""
+            f'[{i + 1}] Document: {e.source_document} | Page: {e.page_number or 1}\nQuote: "{e.quote}"'
             for i, e in enumerate(evidence)
         )
         prompt = (
@@ -365,8 +403,10 @@ async def ask_copilot(
             for e in evidence
         ]
         response = await container.llm.generate(prompt, correlation_id=correlation_id)
-        ans = response.text if response.text.strip() else f"Based on talent screening records, here is relevant evidence for: '{question}'."
+        ans = (
+            response.text
+            if response.text.strip()
+            else f"Based on talent screening records, here is relevant evidence for: '{question}'."
+        )
         yield {"type": "answer_chunk", "data": ans, "citations": citations}
         yield {"type": "done", "data": ans}
-
-

@@ -39,9 +39,14 @@ jobs:
         run: ruff check src tests scripts eval
       - name: Type check with mypy
         run: mypy src
+      - name: Create test database
+        env:
+          PGPASSWORD: copilot
+        run: psql -h localhost -U copilot -d hr_screening -c "CREATE DATABASE hr_screening_test;"
       - name: Run tests
         env:
           DATABASE_URL: postgresql+asyncpg://copilot:copilot@localhost:5432/hr_screening
+          TEST_DATABASE_URL: postgresql+asyncpg://copilot:copilot@localhost:5432/hr_screening_test
           JWT_SECRET: ci-test-secret-not-for-production
         run: |
           alembic upgrade head

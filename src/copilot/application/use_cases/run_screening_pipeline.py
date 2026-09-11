@@ -1,4 +1,5 @@
 """Run the agentic screening pipeline for a candidate."""
+
 from __future__ import annotations
 
 from uuid import UUID
@@ -7,6 +8,7 @@ from copilot.agents.bias_guard import BiasGuard
 from copilot.agents.evidence_extractor import extract_evidence
 from copilot.agents.orchestrator import LangGraphOrchestrator
 from copilot.agents.rubric_scorer import RubricScorer
+from copilot.application.use_cases.ensure_job_rubric import ensure_job_rubric
 from copilot.domain.errors import NotFoundError
 from copilot.domain.rubric_score import RubricScore
 from copilot.infrastructure.di import Container
@@ -26,7 +28,15 @@ async def run_screening_pipeline(
     candidate.mark_processing()
     await container.candidate_repository.update_candidate(candidate)
 
-    rubric = await container.document_repository.get_rubric_for_job(candidate.job_id) if candidate.job_id else None
+    rubric = None
+    if candidate.job_id:
+        job = await container.document_repository.get_job(candidate.job_id)
+        if job is not None:
+            # Auto-provision a default rubric for jobs that have none so the
+            # candidate always receives a meaningful Match Score.
+            rubric = await ensure_job_rubric(container, job)
+        else:
+            rubric = await container.document_repository.get_rubric_for_job(candidate.job_id)
 
     # Agentic flow
     bias_guard = BiasGuard()
@@ -78,7 +88,11 @@ async def run_screening_pipeline(
         target_id=str(candidate.id),
         actor_id=None,
         actor_role=None,
-        details={"overall_score": overall, "evidence_count": len(evidence), "score_count": len(scores)},
+        details={
+            "overall_score": overall,
+            "evidence_count": len(evidence),
+            "score_count": len(scores),
+        },
         correlation_id=correlation_id,
     )
     return {

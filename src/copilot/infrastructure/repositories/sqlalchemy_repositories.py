@@ -1,4 +1,5 @@
 """SQLAlchemy implementations of application repository ports."""
+
 from __future__ import annotations
 
 from uuid import UUID
@@ -285,7 +286,9 @@ class SqlAlchemyDocumentRepository(DocumentRepositoryPort):
 
     async def get_rubric_for_job(self, job_id: UUID) -> Rubric | None:
         result = await self._session.execute(
-            select(RubricORM).options(selectinload(RubricORM.criteria)).where(RubricORM.job_id == job_id)
+            select(RubricORM)
+            .options(selectinload(RubricORM.criteria))
+            .where(RubricORM.job_id == job_id)
         )
         orm = result.scalar_one_or_none()
         return _rubric_to_domain(orm) if orm else None
@@ -314,12 +317,8 @@ class SqlAlchemyDocumentRepository(DocumentRepositoryPort):
         await self._session.execute(
             update(CandidateORM).where(CandidateORM.job_id == job_id).values(job_id=None)
         )
-        await self._session.execute(
-            delete(ReviewTaskORM).where(ReviewTaskORM.job_id == job_id)
-        )
-        await self._session.execute(
-            delete(SLARuleORM).where(SLARuleORM.job_id == job_id)
-        )
+        await self._session.execute(delete(ReviewTaskORM).where(ReviewTaskORM.job_id == job_id))
+        await self._session.execute(delete(SLARuleORM).where(SLARuleORM.job_id == job_id))
         await self._session.execute(
             update(DocumentORM).where(DocumentORM.job_id == job_id).values(job_id=None)
         )
@@ -345,9 +344,7 @@ class SqlAlchemyDocumentRepository(DocumentRepositoryPort):
             await self._session.execute(
                 delete(RubricCriterionORM).where(RubricCriterionORM.rubric_id.in_(rubric_ids))
             )
-            await self._session.execute(
-                delete(RubricORM).where(RubricORM.id.in_(rubric_ids))
-            )
+            await self._session.execute(delete(RubricORM).where(RubricORM.id.in_(rubric_ids)))
         await self._session.delete(job)
         await self._session.flush()
         return True
@@ -548,8 +545,17 @@ class SqlAlchemyVectorStore(VectorStorePort):
         evidence_list: list[Evidence] = []
         for row in result.mappings().all():
             meta = dict(row["metadata"] or {})
-            meta["page_number"] = row["page_number"] if row["page_number"] is not None and row["page_number"] > 0 else 1
-            meta["source_document"] = row.get("filename") or meta.get("filename") or meta.get("source_document") or "Candidate_CV.pdf"
+            meta["page_number"] = (
+                row["page_number"]
+                if row["page_number"] is not None and row["page_number"] > 0
+                else 1
+            )
+            meta["source_document"] = (
+                row.get("filename")
+                or meta.get("filename")
+                or meta.get("source_document")
+                or "Candidate_CV.pdf"
+            )
             meta["full_text"] = row.get("raw_text") or row["text"]
             meta["document_id"] = str(row["document_id"]) if row.get("document_id") else None
             doc_m = row.get("doc_meta") or {}

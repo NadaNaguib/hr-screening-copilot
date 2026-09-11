@@ -1,4 +1,5 @@
 """Typed domain exceptions."""
+
 from __future__ import annotations
 
 
@@ -70,4 +71,3 @@ class PipelineError(DomainError):
     """Screening pipeline failure."""
 
     code = "pipeline_error"
-

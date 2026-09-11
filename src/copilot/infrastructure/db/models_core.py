@@ -1,4 +1,5 @@
 """Core ORM models: users, jobs, documents, chunks."""
+
 from __future__ import annotations
 
 import uuid
@@ -16,7 +17,6 @@ if TYPE_CHECKING:
     from copilot.infrastructure.db.models_rubric import RubricORM
     from copilot.infrastructure.db.models_screening import CandidateORM
     from copilot.infrastructure.db.models_workflow import ReviewTaskORM, SLARuleORM
-
 
 
 def _uuid() -> uuid.UUID:

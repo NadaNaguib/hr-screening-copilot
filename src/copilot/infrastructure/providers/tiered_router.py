@@ -6,6 +6,7 @@ Routes tasks to the most appropriate model tier:
 - REASONING: Complex reasoning tasks (e.g. screening criteria evaluation, rubric scoring, agentic RAG chat).
   Uses reasoning models like gemini-3.8-flash, gemini-2.5-flash, gemini-3.7-flash.
 """
+
 from __future__ import annotations
 
 from enum import Enum

@@ -1,10 +1,11 @@
 """Integration tests for auth and RBAC enforcement."""
+
 from __future__ import annotations
 
 from uuid import uuid4
 
 import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 from copilot.infrastructure.auth.service import create_access_token, hash_password
 from copilot.infrastructure.db.models import UserORM
@@ -61,10 +62,13 @@ async def manager_user(session):
 
 async def test_login_with_valid_credentials(admin_user):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post("/api/v1/auth/login", json={
-            "email": "admin-test@example.com",
-            "password": "password123",
-        })
+        response = await client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "admin-test@example.com",
+                "password": "password123",
+            },
+        )
     assert response.status_code == 200
     data = response.json()
     assert "access_token" in data
@@ -73,10 +77,13 @@ async def test_login_with_valid_credentials(admin_user):
 
 async def test_login_with_invalid_credentials(admin_user):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post("/api/v1/auth/login", json={
-            "email": "admin-test@example.com",
-            "password": "wrongpassword",
-        })
+        response = await client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "admin-test@example.com",
+                "password": "wrongpassword",
+            },
+        )
     assert response.status_code == 401
 
 

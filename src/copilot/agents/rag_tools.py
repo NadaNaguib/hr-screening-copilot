@@ -6,6 +6,7 @@ Provides discrete retrieval tools across 4 distinct scopes:
 3. Talent Pool Scope: cross-candidate semantic search, side-by-side candidate comparison, ranked applicants by job.
 4. Pipeline Scope: pipeline distribution stats, human review queue items.
 """
+
 from __future__ import annotations
 
 import re
@@ -18,7 +19,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from copilot.application.ports.embedding_port import EmbeddingPort
 from copilot.infrastructure.db.models import (
     CandidateORM,
-    ChunkORM,
     DocumentORM,
     JobORM,
     ReviewTaskORM,
@@ -26,10 +26,10 @@ from copilot.infrastructure.db.models import (
     RubricORM,
 )
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Scope 1: Candidate Scope
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 async def lookup_candidate(
     session: AsyncSession,
@@ -98,7 +98,7 @@ async def lookup_candidate(
         "found": False,
         "query": cleaned,
         "message": f"Candidate '{cleaned}' was not found in the talent pool records.",
-        "available_candidates": sorted(list(set(avail))),
+        "available_candidates": sorted(set(avail)),
     }
 
 
@@ -141,7 +141,9 @@ async def get_candidate_cv(
     doc = None
     for d in docs_res.scalars().all():
         meta = d.metadata_ or {}
-        if str(meta.get("candidate_id")) == str(candidate_id) or d.filename.startswith(cand.full_name.replace(" ", "_")):
+        if str(meta.get("candidate_id")) == str(candidate_id) or d.filename.startswith(
+            cand.full_name.replace(" ", "_")
+        ):
             doc = d
             break
 
@@ -218,18 +220,20 @@ async def search_candidate_cv(
         cv_text = cand.raw_text or ""
         if not cv_text:
             return []
-        return [{
-            "id": f"raw_{cand.id}",
-            "chunk_id": f"raw_{cand.id}",
-            "quote": cv_text[:350].replace("\n", " ").strip(),
-            "source": f"{cand.full_name.replace(' ', '_')}_CV.pdf",
-            "page": 1,
-            "candidate_id": cand_id_str,
-            "candidate_name": cand.full_name,
-            "full_context": cv_text,
-            "scope": "candidate_cv",
-            "confidence": 1.0,
-        }]
+        return [
+            {
+                "id": f"raw_{cand.id}",
+                "chunk_id": f"raw_{cand.id}",
+                "quote": cv_text[:350].replace("\n", " ").strip(),
+                "source": f"{cand.full_name.replace(' ', '_')}_CV.pdf",
+                "page": 1,
+                "candidate_id": cand_id_str,
+                "candidate_name": cand.full_name,
+                "full_context": cv_text,
+                "scope": "candidate_cv",
+                "confidence": 1.0,
+            }
+        ]
 
     # Vector search on these candidate chunks
     emb = (await embedding_port.embed([query]))[0]
@@ -253,18 +257,20 @@ async def search_candidate_cv(
     results = []
     for r in vector_res.mappings().all():
         dist = float(r["distance"]) if r.get("distance") is not None else 0.5
-        results.append({
-            "id": str(r["id"]),
-            "chunk_id": str(r["id"]),
-            "quote": r["text"],
-            "source": r.get("filename") or f"{cand.full_name.replace(' ', '_')}_CV.pdf",
-            "page": int(r.get("page_number") or 1),
-            "candidate_id": cand_id_str,
-            "candidate_name": cand.full_name,
-            "full_context": r.get("raw_text") or r["text"],
-            "scope": "candidate_cv",
-            "confidence": max(0.0, 1.0 - dist),
-        })
+        results.append(
+            {
+                "id": str(r["id"]),
+                "chunk_id": str(r["id"]),
+                "quote": r["text"],
+                "source": r.get("filename") or f"{cand.full_name.replace(' ', '_')}_CV.pdf",
+                "page": int(r.get("page_number") or 1),
+                "candidate_id": cand_id_str,
+                "candidate_name": cand.full_name,
+                "full_context": r.get("raw_text") or r["text"],
+                "scope": "candidate_cv",
+                "confidence": max(0.0, 1.0 - dist),
+            }
+        )
     return results
 
 
@@ -299,13 +305,14 @@ async def get_candidate_evaluation(
         "review_priority": task.priority if task else "N/A",
         "skills": cand.skills or [],
         "years_of_experience": cand.years_of_experience,
-        "summary": f"{cand.full_name} has an overall score of {cand.overall_score or 'N/A'}/100 and is in '{cand.status}' status for {job_title}."
+        "summary": f"{cand.full_name} has an overall score of {cand.overall_score or 'N/A'}/100 and is in '{cand.status}' status for {job_title}.",
     }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Scope 2: Job Requisition Scope
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 async def get_job_details(
     session: AsyncSession,
@@ -372,7 +379,9 @@ async def get_job_rubric(
             job_id = j.id
 
     stmt = (
-        select(RubricCriterionORM, RubricORM.name.label("rubric_name"), JobORM.title.label("job_title"))
+        select(
+            RubricCriterionORM, RubricORM.name.label("rubric_name"), JobORM.title.label("job_title")
+        )
         .join(RubricORM, RubricCriterionORM.rubric_id == RubricORM.id)
         .join(JobORM, RubricORM.job_id == JobORM.id)
     )
@@ -398,15 +407,17 @@ async def get_job_rubric(
             "job_title": j_title,
         }
         criteria.append(c_dict)
-        citations.append({
-            "id": f"crit_{rc.id}",
-            "quote": f"Criterion: {rc.name} (Weight: {rc.weight}, Required: {rc.required}) — Keywords: {kw_str}",
-            "source": f"Rubric: {rubric_name} ({j_title})",
-            "page": 1,
-            "candidate_id": "",
-            "full_context": f"Criterion: {rc.name}\nDescription: {rc.description}\nWeight: {rc.weight}\nRequired: {rc.required}\nScore Range: {rc.min_score}-{rc.max_score}\nKeywords: {kw_str}",
-            "scope": "rubric",
-        })
+        citations.append(
+            {
+                "id": f"crit_{rc.id}",
+                "quote": f"Criterion: {rc.name} (Weight: {rc.weight}, Required: {rc.required}) — Keywords: {kw_str}",
+                "source": f"Rubric: {rubric_name} ({j_title})",
+                "page": 1,
+                "candidate_id": "",
+                "full_context": f"Criterion: {rc.name}\nDescription: {rc.description}\nWeight: {rc.weight}\nRequired: {rc.required}\nScore Range: {rc.min_score}-{rc.max_score}\nKeywords: {kw_str}",
+                "scope": "rubric",
+            }
+        )
 
     return {
         "job_id": str(job_id) if job_id else None,
@@ -421,20 +432,23 @@ async def list_all_jobs(session: AsyncSession) -> list[dict[str, Any]]:
     res = await session.execute(select(JobORM).order_by(JobORM.created_at.desc()))
     jobs = []
     for j in res.scalars().all():
-        jobs.append({
-            "job_id": str(j.id),
-            "title": j.title,
-            "department": j.department,
-            "priority": j.priority,
-            "skills": j.skills or [],
-            "location": j.location,
-        })
+        jobs.append(
+            {
+                "job_id": str(j.id),
+                "title": j.title,
+                "department": j.department,
+                "priority": j.priority,
+                "skills": j.skills or [],
+                "location": j.location,
+            }
+        )
     return jobs
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Scope 3: Talent Pool & Comparison Scope
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 async def search_talent_pool(
     session: AsyncSession,
@@ -470,19 +484,21 @@ async def search_talent_pool(
         name = row.get("full_name") or "Talent Pool Candidate"
         cand_id_str = str(row.get("cand_id") or "")
         dist = float(row["distance"]) if row.get("distance") is not None else 0.5
-        results.append({
-            "id": str(row["id"]),
-            "chunk_id": str(row["id"]),
-            "quote": row["text"],
-            "source": row.get("filename") or f"{name.replace(' ', '_')}_CV.pdf",
-            "page": int(row.get("page_number") or 1),
-            "candidate_id": cand_id_str,
-            "candidate_name": name,
-            "overall_score": row.get("overall_score"),
-            "full_context": row.get("raw_text") or row["text"],
-            "scope": "talent_pool",
-            "confidence": max(0.0, 1.0 - dist),
-        })
+        results.append(
+            {
+                "id": str(row["id"]),
+                "chunk_id": str(row["id"]),
+                "quote": row["text"],
+                "source": row.get("filename") or f"{name.replace(' ', '_')}_CV.pdf",
+                "page": int(row.get("page_number") or 1),
+                "candidate_id": cand_id_str,
+                "candidate_name": name,
+                "overall_score": row.get("overall_score"),
+                "full_context": row.get("raw_text") or row["text"],
+                "scope": "talent_pool",
+                "confidence": max(0.0, 1.0 - dist),
+            }
+        )
     return results
 
 
@@ -514,16 +530,20 @@ async def compare_candidates(
             "education": [e.get("degree") for e in (cand.education or []) if isinstance(e, dict)],
         }
         candidates_summary.append(summary)
-        citations.append({
-            "id": f"comp_{cand.id}",
-            "quote": f"{cand.full_name}: {cand.years_of_experience} yrs exp | Score: {cand.overall_score}/100 | Skills: {', '.join(skills[:6])}",
-            "source": f"{cand.full_name.replace(' ', '_')}_CV.pdf",
-            "page": 1,
-            "candidate_id": str(cand.id),
-            "candidate_name": cand.full_name,
-            "full_context": cand.raw_text[:500] if cand.raw_text else f"{cand.full_name} profile",
-            "scope": "candidate_comparison",
-        })
+        citations.append(
+            {
+                "id": f"comp_{cand.id}",
+                "quote": f"{cand.full_name}: {cand.years_of_experience} yrs exp | Score: {cand.overall_score}/100 | Skills: {', '.join(skills[:6])}",
+                "source": f"{cand.full_name.replace(' ', '_')}_CV.pdf",
+                "page": 1,
+                "candidate_id": str(cand.id),
+                "candidate_name": cand.full_name,
+                "full_context": cand.raw_text[:500]
+                if cand.raw_text
+                else f"{cand.full_name} profile",
+                "scope": "candidate_comparison",
+            }
+        )
 
     return {
         "candidate_count": len(candidates_summary),
@@ -562,6 +582,7 @@ async def list_candidates_for_job(
 # Scope 4: Pipeline & Review Queue Scope
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 async def get_pipeline_stats(session: AsyncSession) -> dict[str, Any]:
     """Get screening pipeline distribution metrics and candidate counts by status."""
     stmt = select(CandidateORM.status, func.count(CandidateORM.id)).group_by(CandidateORM.status)
@@ -598,13 +619,15 @@ async def get_review_queue_status(
     res = await session.execute(stmt)
     tasks = []
     for rt, name, j_title in res.all():
-        tasks.append({
-            "task_id": str(rt.id),
-            "candidate_id": str(rt.candidate_id),
-            "candidate_name": name,
-            "job_title": j_title or "Unassigned",
-            "status": rt.status,
-            "priority": rt.priority,
-            "created_at": rt.created_at.isoformat() if rt.created_at else None,
-        })
+        tasks.append(
+            {
+                "task_id": str(rt.id),
+                "candidate_id": str(rt.candidate_id),
+                "candidate_name": name,
+                "job_title": j_title or "Unassigned",
+                "status": rt.status,
+                "priority": rt.priority,
+                "created_at": rt.created_at.isoformat() if rt.created_at else None,
+            }
+        )
     return tasks

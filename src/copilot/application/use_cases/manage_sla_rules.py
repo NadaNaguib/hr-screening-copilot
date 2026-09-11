@@ -1,4 +1,5 @@
 """Admin CRUD for SLA rules."""
+
 from __future__ import annotations
 
 from uuid import UUID

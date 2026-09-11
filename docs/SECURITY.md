@@ -4,7 +4,7 @@
 | Risk | Mitigation |
 |------|------------|
 | Broken Access Control | Server-side RBAC on every route; role-specific query filters |
-| Cryptographic Failures | JWT via python-jose, bcrypt password hashing, HTTPS in production |
+| Cryptographic Failures | JWT via PyJWT, bcrypt password hashing, HTTPS in production |
 | Injection | Parameterized SQLAlchemy queries; strict instruction/retrieved-content separation |
 | Insecure Design | Human gate, bias audit, mandatory reasons on decisions |
 | Security Misconfiguration | Non-root containers, secret env vars, pinned dependencies |

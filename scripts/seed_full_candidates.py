@@ -1,4 +1,5 @@
 """Seed complete, rich, realistic CVs, documents, and chunk embeddings for all candidates."""
+
 from __future__ import annotations
 
 import asyncio
@@ -6,7 +7,7 @@ import hashlib
 import uuid
 from typing import Any
 
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from copilot.infrastructure.config.settings import get_settings
@@ -28,13 +29,37 @@ CANDIDATES_DATA = [
         "years_of_experience": 8.0,
         "overall_score": 94.0,
         "status": "screened",
-        "skills": ["Python", "FastAPI", "PostgreSQL", "System Design", "Microservices", "AWS", "Docker", "Redis"],
+        "skills": [
+            "Python",
+            "FastAPI",
+            "PostgreSQL",
+            "System Design",
+            "Microservices",
+            "AWS",
+            "Docker",
+            "Redis",
+        ],
         "education": [
-            {"degree": "B.S. in Computer Science", "institution": "Stanford University", "year": "2012-2016", "honors": "Summa Cum Laude"}
+            {
+                "degree": "B.S. in Computer Science",
+                "institution": "Stanford University",
+                "year": "2012-2016",
+                "honors": "Summa Cum Laude",
+            }
         ],
         "work_experience": [
-            {"company": "Stripe", "role": "Senior Backend Software Engineer", "years": "2020-Present", "description": "Designed high-throughput payment settlement microservices in Python & FastAPI processing 50k requests/sec. Optimized PostgreSQL database queries reducing p99 latency by 45%."},
-            {"company": "FinTech Cloud Solutions", "role": "Backend Engineer", "years": "2016-2020", "description": "Built scalable RESTful APIs with Python, Django, and PostgreSQL. Architected asynchronous event-driven queues with Celery and Redis."}
+            {
+                "company": "Stripe",
+                "role": "Senior Backend Software Engineer",
+                "years": "2020-Present",
+                "description": "Designed high-throughput payment settlement microservices in Python & FastAPI processing 50k requests/sec. Optimized PostgreSQL database queries reducing p99 latency by 45%.",
+            },
+            {
+                "company": "FinTech Cloud Solutions",
+                "role": "Backend Engineer",
+                "years": "2016-2020",
+                "description": "Built scalable RESTful APIs with Python, Django, and PostgreSQL. Architected asynchronous event-driven queues with Celery and Redis.",
+            },
         ],
         "cv_text": """ALICE JOHNSON
 Email: alice.johnson@example.com | Phone: +1-415-555-0142 | Location: San Francisco, CA | GitHub: github.com/alicejohnson
@@ -75,7 +100,7 @@ PROJECTS & OPEN SOURCE
 CERTIFICATIONS
 • AWS Certified Solutions Architect – Professional (2022)
 • Certified Kubernetes Application Developer (CKAD) (2021)
-"""
+""",
     },
     {
         "full_name": "Bob Smith",
@@ -85,13 +110,36 @@ CERTIFICATIONS
         "years_of_experience": 5.0,
         "overall_score": 88.0,
         "status": "screened",
-        "skills": ["React", "TypeScript", "Tailwind CSS", "Next.js", "Redux Toolkit", "UI/UX", "Webpack", "Jest"],
+        "skills": [
+            "React",
+            "TypeScript",
+            "Tailwind CSS",
+            "Next.js",
+            "Redux Toolkit",
+            "UI/UX",
+            "Webpack",
+            "Jest",
+        ],
         "education": [
-            {"degree": "B.S. in Cognitive Science & Human-Computer Interaction", "institution": "UC San Diego", "year": "2015-2019"}
+            {
+                "degree": "B.S. in Cognitive Science & Human-Computer Interaction",
+                "institution": "UC San Diego",
+                "year": "2015-2019",
+            }
         ],
         "work_experience": [
-            {"company": "Shopify", "role": "Frontend Specialist", "years": "2021-Present", "description": "Built responsive merchant analytics dashboards in React 18, TypeScript, and Tailwind CSS. Implemented design system components with WCAG AAA accessibility."},
-            {"company": "DesignTech Interactive", "role": "Frontend Developer", "years": "2019-2021", "description": "Created interactive e-commerce single page applications with React, Next.js, Redux, and modern CSS modules."}
+            {
+                "company": "Shopify",
+                "role": "Frontend Specialist",
+                "years": "2021-Present",
+                "description": "Built responsive merchant analytics dashboards in React 18, TypeScript, and Tailwind CSS. Implemented design system components with WCAG AAA accessibility.",
+            },
+            {
+                "company": "DesignTech Interactive",
+                "role": "Frontend Developer",
+                "years": "2019-2021",
+                "description": "Created interactive e-commerce single page applications with React, Next.js, Redux, and modern CSS modules.",
+            },
         ],
         "cv_text": """BOB SMITH
 Email: bob.smith@example.com | Phone: +1-206-555-0198 | Location: Seattle, WA | Portfolio: bobsmith.dev
@@ -125,7 +173,7 @@ EDUCATION
 PROJECTS & OPEN SOURCE
 • Tailwind-React-Components: Open-source accessible UI component library with 800+ GitHub stars.
 • React State Visualizer: Interactive Chrome DevTools extension for inspecting reactive state trees.
-"""
+""",
     },
     {
         "full_name": "Carol White",
@@ -135,13 +183,37 @@ PROJECTS & OPEN SOURCE
         "years_of_experience": 7.0,
         "overall_score": 91.0,
         "status": "screened",
-        "skills": ["Docker", "Kubernetes", "Terraform", "AWS", "CI/CD", "Helm", "Prometheus", "Grafana", "Linux"],
+        "skills": [
+            "Docker",
+            "Kubernetes",
+            "Terraform",
+            "AWS",
+            "CI/CD",
+            "Helm",
+            "Prometheus",
+            "Grafana",
+            "Linux",
+        ],
         "education": [
-            {"degree": "B.S. in Computer Engineering", "institution": "University of Washington", "year": "2013-2017"}
+            {
+                "degree": "B.S. in Computer Engineering",
+                "institution": "University of Washington",
+                "year": "2013-2017",
+            }
         ],
         "work_experience": [
-            {"company": "CloudNative Systems", "role": "Senior DevOps & Infrastructure Engineer", "years": "2020-Present", "description": "Managed multi-region production Kubernetes (EKS) clusters. Automated cloud infrastructure with Terraform and built GitOps CI/CD pipelines with GitHub Actions and ArgoCD."},
-            {"company": "DataScale Platform", "role": "DevOps Engineer", "years": "2017-2020", "description": "Automated Docker container builds and deployments. Managed cloud infrastructure across AWS and GCP, instrumenting observability with Prometheus and Grafana."}
+            {
+                "company": "CloudNative Systems",
+                "role": "Senior DevOps & Infrastructure Engineer",
+                "years": "2020-Present",
+                "description": "Managed multi-region production Kubernetes (EKS) clusters. Automated cloud infrastructure with Terraform and built GitOps CI/CD pipelines with GitHub Actions and ArgoCD.",
+            },
+            {
+                "company": "DataScale Platform",
+                "role": "DevOps Engineer",
+                "years": "2017-2020",
+                "description": "Automated Docker container builds and deployments. Managed cloud infrastructure across AWS and GCP, instrumenting observability with Prometheus and Grafana.",
+            },
         ],
         "cv_text": """CAROL WHITE
 Email: carol.white@example.com | Phone: +1-512-555-0167 | Location: Austin, TX | GitHub: github.com/carolwhite-devops
@@ -179,7 +251,7 @@ CERTIFICATIONS
 • AWS Certified Solutions Architect – Professional
 • Certified Kubernetes Administrator (CKA)
 • HashiCorp Certified: Terraform Associate
-"""
+""",
     },
     {
         "full_name": "David Brown",
@@ -189,13 +261,36 @@ CERTIFICATIONS
         "years_of_experience": 6.0,
         "overall_score": 87.0,
         "status": "screened",
-        "skills": ["Python", "React", "TypeScript", "FastAPI", "PostgreSQL", "GraphQL", "Leadership", "SaaS"],
+        "skills": [
+            "Python",
+            "React",
+            "TypeScript",
+            "FastAPI",
+            "PostgreSQL",
+            "GraphQL",
+            "Leadership",
+            "SaaS",
+        ],
         "education": [
-            {"degree": "B.S. in Computer Science", "institution": "University of Illinois Urbana-Champaign", "year": "2014-2018"}
+            {
+                "degree": "B.S. in Computer Science",
+                "institution": "University of Illinois Urbana-Champaign",
+                "year": "2014-2018",
+            }
         ],
         "work_experience": [
-            {"company": "SaaSify Tech", "role": "Lead Full-Stack Developer", "years": "2021-Present", "description": "Led team of 4 engineers building end-to-end features with Python, FastAPI, and React. Architected GraphQL APIs and PostgreSQL schemas."},
-            {"company": "Enterprise Software Lab", "role": "Full-Stack Engineer", "years": "2018-2021", "description": "Developed full-stack web applications with Python (Django/FastAPI), React, and PostgreSQL. Mentored junior developers."}
+            {
+                "company": "SaaSify Tech",
+                "role": "Lead Full-Stack Developer",
+                "years": "2021-Present",
+                "description": "Led team of 4 engineers building end-to-end features with Python, FastAPI, and React. Architected GraphQL APIs and PostgreSQL schemas.",
+            },
+            {
+                "company": "Enterprise Software Lab",
+                "role": "Full-Stack Engineer",
+                "years": "2018-2021",
+                "description": "Developed full-stack web applications with Python (Django/FastAPI), React, and PostgreSQL. Mentored junior developers.",
+            },
         ],
         "cv_text": """DAVID BROWN
 Email: david.brown@example.com | Phone: +1-312-555-0183 | Location: Chicago, IL | LinkedIn: linkedin.com/in/davidbrown-dev
@@ -224,7 +319,7 @@ Full-Stack Engineer | Enterprise Software Lab | 2018 – 2021
 
 EDUCATION
 • B.S. in Computer Science | University of Illinois Urbana-Champaign (2014 – 2018)
-"""
+""",
     },
     {
         "full_name": "Eva Green",
@@ -234,12 +329,30 @@ EDUCATION
         "years_of_experience": 2.0,
         "overall_score": 74.0,
         "status": "uploaded",
-        "skills": ["Python", "Django", "FastAPI", "SQL", "PostgreSQL", "REST APIs", "Git", "Learning"],
+        "skills": [
+            "Python",
+            "Django",
+            "FastAPI",
+            "SQL",
+            "PostgreSQL",
+            "REST APIs",
+            "Git",
+            "Learning",
+        ],
         "education": [
-            {"degree": "B.S. in Computer Science", "institution": "UC Berkeley", "year": "2018-2022"}
+            {
+                "degree": "B.S. in Computer Science",
+                "institution": "UC Berkeley",
+                "year": "2018-2022",
+            }
         ],
         "work_experience": [
-            {"company": "Berkeley Tech Labs", "role": "Junior Backend Developer", "years": "2022-Present", "description": "Developed RESTful APIs with Python and Django. Wrote unit tests, database migrations, and queries with PostgreSQL."}
+            {
+                "company": "Berkeley Tech Labs",
+                "role": "Junior Backend Developer",
+                "years": "2022-Present",
+                "description": "Developed RESTful APIs with Python and Django. Wrote unit tests, database migrations, and queries with PostgreSQL.",
+            }
         ],
         "cv_text": """EVA GREEN
 Email: eva.green@example.com | Phone: +1-415-555-0176 | Location: San Francisco, CA
@@ -264,7 +377,7 @@ Junior Backend Developer | Berkeley Tech Labs | 2022 – Present
 EDUCATION
 • B.S. in Computer Science | University of California, Berkeley (2018 – 2022)
   Relevant Coursework: Data Structures, Algorithms, Database Systems, Computer Architecture
-"""
+""",
     },
     {
         "full_name": "Youssef Eid",
@@ -274,13 +387,38 @@ EDUCATION
         "years_of_experience": 7.0,
         "overall_score": 92.0,
         "status": "screened",
-        "skills": ["Python", "Machine Learning", "AI", "PyTorch", "FastAPI", "Docker", "Data Pipelines", "PostgreSQL", "Vector Search"],
+        "skills": [
+            "Python",
+            "Machine Learning",
+            "AI",
+            "PyTorch",
+            "FastAPI",
+            "Docker",
+            "Data Pipelines",
+            "PostgreSQL",
+            "Vector Search",
+        ],
         "education": [
-            {"degree": "B.S. in Computer Science & Artificial Intelligence", "institution": "Cairo University", "year": "2013-2017", "honors": "First Class Honors"}
+            {
+                "degree": "B.S. in Computer Science & Artificial Intelligence",
+                "institution": "Cairo University",
+                "year": "2013-2017",
+                "honors": "First Class Honors",
+            }
         ],
         "work_experience": [
-            {"company": "DeepAI Solutions", "role": "Senior AI & Backend Engineer", "years": "2020-Present", "description": "Architected AI-powered document extraction pipelines using PyTorch, HuggingFace Transformers, and FastAPI. Built high-scale vector search pipelines with pgvector."},
-            {"company": "SmartTech MENA", "role": "Python Machine Learning Engineer", "years": "2017-2020", "description": "Trained and deployed deep learning models in production with Python, Docker, and PostgreSQL."}
+            {
+                "company": "DeepAI Solutions",
+                "role": "Senior AI & Backend Engineer",
+                "years": "2020-Present",
+                "description": "Architected AI-powered document extraction pipelines using PyTorch, HuggingFace Transformers, and FastAPI. Built high-scale vector search pipelines with pgvector.",
+            },
+            {
+                "company": "SmartTech MENA",
+                "role": "Python Machine Learning Engineer",
+                "years": "2017-2020",
+                "description": "Trained and deployed deep learning models in production with Python, Docker, and PostgreSQL.",
+            },
         ],
         "cv_text": """YOUSSEF EID
 Email: youssef.eid@example.com | Phone: +20-100-555-0199 | Location: Cairo, Egypt | GitHub: github.com/youssefeid
@@ -308,7 +446,7 @@ Python Machine Learning Engineer | SmartTech MENA | 2017 – 2020
 EDUCATION
 • B.S. in Computer Science & Artificial Intelligence | Cairo University (2013 – 2017)
   First Class Honors, Graduation Project: Neural Semantic Search Engine (Ranked #1)
-"""
+""",
     },
     {
         "full_name": "Elena Rostova",
@@ -318,12 +456,30 @@ EDUCATION
         "years_of_experience": 5.0,
         "overall_score": 89.0,
         "status": "screened",
-        "skills": ["Python", "C++", "Distributed Systems", "PostgreSQL", "FastAPI", "High Concurrency", "System Design"],
+        "skills": [
+            "Python",
+            "C++",
+            "Distributed Systems",
+            "PostgreSQL",
+            "FastAPI",
+            "High Concurrency",
+            "System Design",
+        ],
         "education": [
-            {"degree": "B.Sc. in Computer Science & Engineering", "institution": "Tech University", "year": "2015-2019", "honors": "Magna Cum Laude"}
+            {
+                "degree": "B.Sc. in Computer Science & Engineering",
+                "institution": "Tech University",
+                "year": "2015-2019",
+                "honors": "Magna Cum Laude",
+            }
         ],
         "work_experience": [
-            {"company": "HighFrequency Distributed Systems", "role": "Backend Software Engineer", "years": "2019-Present", "description": "Engineered low-latency distributed transaction systems in C++ and Python. Specialized in concurrent algorithms and database performance."}
+            {
+                "company": "HighFrequency Distributed Systems",
+                "role": "Backend Software Engineer",
+                "years": "2019-Present",
+                "description": "Engineered low-latency distributed transaction systems in C++ and Python. Specialized in concurrent algorithms and database performance.",
+            }
         ],
         "cv_text": """ELENA ROSTOVA
 Email: elena.rostova@example.com | Phone: +1-617-555-0133 | Location: Boston, MA
@@ -339,7 +495,7 @@ CORE TECHNICAL SKILLS
 EDUCATION
 • B.Sc. in Computer Science & Engineering | Tech University (2015 – 2019)
   Honors: Magna Cum Laude, Dean's Honors List
-"""
+""",
     },
     {
         "full_name": "Samira El-Sayed",
@@ -349,12 +505,30 @@ EDUCATION
         "years_of_experience": 9.0,
         "overall_score": 96.0,
         "status": "screened",
-        "skills": ["Go", "Python", "Microservices", "Event-Driven Architecture", "Kafka", "PostgreSQL", "System Design", "Leadership"],
+        "skills": [
+            "Go",
+            "Python",
+            "Microservices",
+            "Event-Driven Architecture",
+            "Kafka",
+            "PostgreSQL",
+            "System Design",
+            "Leadership",
+        ],
         "education": [
-            {"degree": "B.Sc. in Computer Engineering", "institution": "Cairo University", "year": "2011-2015"}
+            {
+                "degree": "B.Sc. in Computer Engineering",
+                "institution": "Cairo University",
+                "year": "2011-2015",
+            }
         ],
         "work_experience": [
-            {"company": "Global Distributed Cloud", "role": "Lead Backend Architect", "years": "2019-Present", "description": "Led team of 8 architects designing event-driven microservices across Go, Python, and Kafka. Highest seniority in talent pool with 9 years of experience."}
+            {
+                "company": "Global Distributed Cloud",
+                "role": "Lead Backend Architect",
+                "years": "2019-Present",
+                "description": "Led team of 8 architects designing event-driven microservices across Go, Python, and Kafka. Highest seniority in talent pool with 9 years of experience.",
+            }
         ],
         "cv_text": """SAMIRA EL-SAYED
 Email: samira.elsayed@example.com | Phone: +20-102-555-0188 | Location: Cairo, Egypt
@@ -369,8 +543,8 @@ CORE TECHNICAL SKILLS
 
 EDUCATION
 • B.Sc. in Computer Engineering | Cairo University (2011 – 2015)
-"""
-    }
+""",
+    },
 ]
 
 
@@ -387,22 +561,26 @@ def _chunk_cv(text_content: str, filename: str) -> list[dict[str, Any]]:
         current_len += len(s)
         if current_len >= 350:
             chunk_text = "\n\n".join(current_chunk)
-            chunks.append({
-                "text": chunk_text,
-                "page": page,
-                "filename": filename,
-            })
+            chunks.append(
+                {
+                    "text": chunk_text,
+                    "page": page,
+                    "filename": filename,
+                }
+            )
             current_chunk = []
             current_len = 0
             if len(chunks) % 2 == 0:
                 page += 1
 
     if current_chunk:
-        chunks.append({
-            "text": "\n\n".join(current_chunk),
-            "page": page,
-            "filename": filename,
-        })
+        chunks.append(
+            {
+                "text": "\n\n".join(current_chunk),
+                "page": page,
+                "filename": filename,
+            }
+        )
     return chunks
 
 
@@ -426,9 +604,13 @@ async def run_seed():
                 for doc_row in docs_res.scalars().all():
                     meta = doc_row.metadata_ or {}
                     if str(meta.get("candidate_id")) == str(other.id):
-                        await session.execute(delete(ChunkORM).where(ChunkORM.document_id == doc_row.id))
+                        await session.execute(
+                            delete(ChunkORM).where(ChunkORM.document_id == doc_row.id)
+                        )
                         await session.delete(doc_row)
-                await session.execute(delete(ReviewTaskORM).where(ReviewTaskORM.candidate_id == other.id))
+                await session.execute(
+                    delete(ReviewTaskORM).where(ReviewTaskORM.candidate_id == other.id)
+                )
                 await session.delete(other)
             await session.flush()
 
@@ -444,7 +626,9 @@ async def run_seed():
             job_id = target_job.id if target_job else None
 
             # Check existing candidate
-            c_res = await session.execute(select(CandidateORM).where(CandidateORM.full_name == full_name))
+            c_res = await session.execute(
+                select(CandidateORM).where(CandidateORM.full_name == full_name)
+            )
             candidate = c_res.scalar_one_or_none()
             if not candidate:
                 candidate = CandidateORM(
@@ -480,15 +664,19 @@ async def run_seed():
                 await session.flush()
 
             # Ensure review task
-            rt_res = await session.execute(select(ReviewTaskORM).where(ReviewTaskORM.candidate_id == candidate.id))
+            rt_res = await session.execute(
+                select(ReviewTaskORM).where(ReviewTaskORM.candidate_id == candidate.id)
+            )
             if not rt_res.scalar_one_or_none() and job_id:
-                session.add(ReviewTaskORM(
-                    id=uuid.uuid4(),
-                    candidate_id=candidate.id,
-                    job_id=job_id,
-                    status="PENDING_TRIAGE",
-                    priority=candidate.priority,
-                ))
+                session.add(
+                    ReviewTaskORM(
+                        id=uuid.uuid4(),
+                        candidate_id=candidate.id,
+                        job_id=job_id,
+                        status="PENDING_TRIAGE",
+                        priority=candidate.priority,
+                    )
+                )
 
             # Ensure Document record
             filename = f"{full_name.replace(' ', '_')}_CV.pdf"
@@ -543,7 +731,7 @@ async def run_seed():
                         "full_name": full_name,
                         "page_number": ch["page"],
                         "chunk_index": idx,
-                    }
+                    },
                 )
                 session.add(chunk_orm)
             await session.flush()

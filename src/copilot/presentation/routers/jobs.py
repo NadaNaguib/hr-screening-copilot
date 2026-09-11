@@ -1,4 +1,5 @@
 """Job and rubric endpoints."""
+
 from __future__ import annotations
 
 from uuid import UUID
@@ -6,6 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
+from copilot.application.use_cases.ensure_job_rubric import ensure_job_rubric
 from copilot.application.use_cases.ingest_document import ingest_document
 from copilot.domain.job import Job
 from copilot.domain.rubric import CriterionWeight, Rubric, RubricCriterion
@@ -56,6 +58,8 @@ async def create_job(
         skills=request.skills,
     )
     saved = await container.document_repository.create_job(job)
+    # Provision a default rubric so newly created jobs can be scored immediately.
+    await ensure_job_rubric(container, saved)
     return {
         "id": str(saved.id),
         "title": saved.title,
@@ -106,7 +110,9 @@ async def create_rubric(
         )
         for c in request.criteria
     ]
-    rubric = Rubric(job_id=job_id, name=request.name, description=request.description, criteria=criteria)
+    rubric = Rubric(
+        job_id=job_id, name=request.name, description=request.description, criteria=criteria
+    )
     saved = await container.document_repository.create_rubric(rubric)
     return {"id": str(saved.id), "criteria_count": len(saved.criteria)}
 

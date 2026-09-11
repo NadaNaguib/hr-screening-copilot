@@ -1,9 +1,9 @@
 """Shared pytest fixtures."""
+
 from __future__ import annotations
 
 import os
 from collections.abc import AsyncGenerator
-from datetime import datetime
 from uuid import uuid4
 
 import pytest_asyncio
@@ -16,8 +16,6 @@ from copilot.infrastructure.db.models import (
     CandidateORM,
     JobORM,
     ReviewTaskORM,
-    SLARuleORM,
-    UserORM,
 )
 
 TEST_DATABASE_URL = os.environ.get(
@@ -44,6 +42,8 @@ async def engine():
     yield engine
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+
+
 @pytest_asyncio.fixture(autouse=True)
 async def reset_db(engine):
     """Reset all tables before each test to ensure isolation."""

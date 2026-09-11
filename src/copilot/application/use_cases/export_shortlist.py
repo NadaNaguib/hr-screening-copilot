@@ -1,4 +1,5 @@
 """Export shortlist as CSV or PDF."""
+
 from __future__ import annotations
 
 import csv
@@ -29,16 +30,27 @@ async def export_shortlist(
 
     entries = list(shortlist.entries)
     if format == ShortlistFormat.CSV.value:
-        output = io.StringIO()
-        writer = csv.writer(output)
-        writer.writerow(["candidate_id", "full_name", "email", "overall_score", "status", "manager_comment"])
+        csv_output = io.StringIO()
+        writer = csv.writer(csv_output)
+        writer.writerow(
+            ["candidate_id", "full_name", "email", "overall_score", "status", "manager_comment"]
+        )
         for e in entries:
-            writer.writerow([str(e.candidate_id), e.full_name, e.email, e.overall_score, e.status, e.manager_comment])
-        return output.getvalue().encode("utf-8"), "text/csv"
+            writer.writerow(
+                [
+                    str(e.candidate_id),
+                    e.full_name,
+                    e.email,
+                    e.overall_score,
+                    e.status,
+                    e.manager_comment,
+                ]
+            )
+        return csv_output.getvalue().encode("utf-8"), "text/csv"
 
     if format == ShortlistFormat.PDF.value:
-        output = io.BytesIO()
-        c = canvas.Canvas(output, pagesize=letter)
+        pdf_output = io.BytesIO()
+        c = canvas.Canvas(pdf_output, pagesize=letter)
         c.drawString(72, 750, f"Shortlist: {shortlist.name}")
         y = 720
         for e in entries:
@@ -49,6 +61,6 @@ async def export_shortlist(
                 c.showPage()
                 y = 750
         c.save()
-        return output.getvalue(), "application/pdf"
+        return pdf_output.getvalue(), "application/pdf"
 
     raise ValueError(f"Unsupported format: {format}")

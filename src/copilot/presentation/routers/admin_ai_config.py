@@ -1,7 +1,8 @@
 """Admin AI/RAG settings and usage endpoints."""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,7 +10,11 @@ from pydantic import BaseModel, Field
 
 from copilot.infrastructure.config.ai_config import AIConfigManager
 from copilot.infrastructure.observability.correlation import get_correlation_id
-from copilot.infrastructure.observability.token_cost import FailureRecord, TokenCostRecord, get_ledger
+from copilot.infrastructure.observability.token_cost import (
+    FailureRecord,
+    TokenCostRecord,
+    get_ledger,
+)
 from copilot.presentation.dependencies import require_roles
 
 router = APIRouter()
@@ -64,7 +69,9 @@ async def update_ai_config(
     admin_user: dict = Depends(require_roles("admin")),
 ) -> dict[str, Any]:
     manager = AIConfigManager()
-    updates = {k: v for k, v in request.model_dump().items() if v is not None or isinstance(v, bool)}
+    updates = {
+        k: v for k, v in request.model_dump().items() if v is not None or isinstance(v, bool)
+    }
     if "gemini_api_key" in updates and not updates["gemini_api_key"]:
         # Empty string means keep current key; never overwrite with empty to avoid accidental wipe
         del updates["gemini_api_key"]
@@ -110,8 +117,8 @@ async def test_ai(
     request: LLMTestRequest,
     admin_user: dict = Depends(require_roles("admin")),
 ) -> dict[str, Any]:
-    from copilot.infrastructure.di import Container
     from copilot.infrastructure.db.session import async_session_factory
+    from copilot.infrastructure.di import Container
 
     manager = AIConfigManager()
     if not manager.config.ai_enabled:
@@ -130,7 +137,9 @@ async def test_ai(
             )
             meta = response.metadata or {}
             if response.model == "degraded" or meta.get("degraded"):
-                last_err = meta.get("last_error") or "LLM generation failed and degraded to offline mode"
+                last_err = (
+                    meta.get("last_error") or "LLM generation failed and degraded to offline mode"
+                )
                 return {
                     "ok": False,
                     "model": manager.config.gemini_model,
@@ -170,7 +179,7 @@ async def test_ai(
                     model=manager.config.gemini_model,
                     error=str(exc),
                     correlation_id=correlation_id,
-                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    timestamp=datetime.now(UTC).isoformat(),
                 )
             )
             return {"ok": False, "error": str(exc), "model": manager.config.gemini_model}

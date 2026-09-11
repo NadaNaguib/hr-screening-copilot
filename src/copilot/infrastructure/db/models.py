@@ -1,4 +1,5 @@
 """Aggregate ORM model imports so Alembic can discover all tables."""
+
 from __future__ import annotations
 
 from copilot.infrastructure.db.models_core import (  # noqa: F401

@@ -1,11 +1,12 @@
 """Authentication and authorization helpers."""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
 from uuid import UUID
 
 import bcrypt
-from jose import JWTError, jwt
+import jwt
 
 from copilot.infrastructure.config.settings import get_settings
 
@@ -41,7 +42,7 @@ def decode_token(token: str) -> dict | None:
     settings = get_settings()
     try:
         return jwt.decode(token, settings.jwt_secret, algorithms=[settings.algorithm])
-    except JWTError:
+    except jwt.InvalidTokenError:
         return None
 
 

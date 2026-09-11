@@ -123,7 +123,7 @@ This register provides an unvarnished audit of all failures, architectural compr
 
 | FR | Requirement | Status | Verification Evidence & Known Limitations |
 |----|-------------|--------|-------------------------------------------|
-| FR-1 | Document ingestion (PDF/DOCX, SHA-256 dedup, parse, skills) | ✅ Complete | Ingestion use case, PDF parser, SHA-256 deduplication collision tests. *Note: Emits PyPDF2 deprecation warning; should migrate to pypdf.* |
+| FR-1 | Document ingestion (PDF/DOCX, SHA-256 dedup, parse, skills) | ✅ Complete | Ingestion use case, `pypdf` PDF parser, SHA-256 deduplication collision tests. |
 | FR-2 | Agentic pipeline (evidence, bias-guard, rubric, shortlist) | ✅ Complete | LangGraph orchestrator, 4 agents, degrade-to-Plain-RAG path. Verified iteration breaker ($\le 10$) and 30s step timeouts. |
 | FR-3 | Two-stage review (recruiter→manager→admin override) | ✅ Complete | Two-stage review actions, break-glass admin override audit log. Enforces role separation in `ReviewQueue.tsx`. |
 | FR-4 | SLA rules (configurable, scheduler, auto-escalation) | ✅ Complete | Global defaults, per-job overrides, APScheduler auto-escalation engine. Verified priority hierarchy. |

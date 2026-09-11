@@ -1,4 +1,5 @@
 """Generate and ingest a realistic sample candidate CV matching a job."""
+
 from __future__ import annotations
 
 import random
@@ -31,8 +32,8 @@ def _build_mimic_cv(name: str, job_title: str, department: str, skills: list[str
     return f"""CURRICULUM VITAE
 
 FULL NAME: {name}
-CONTACT: {name.lower().replace(' ', '.')}@example.com | +1 (555) 019-2834
-TARGET ROLE: {job_title} ({department or 'Engineering'})
+CONTACT: {name.lower().replace(" ", ".")}@example.com | +1 (555) 019-2834
+TARGET ROLE: {job_title} ({department or "Engineering"})
 
 PROFESSIONAL SUMMARY:
 Accomplished and proactive professional with 5+ years of demonstrable hands-on experience in {job_title}. Proven expertise in building robust, scalable production systems, collaborating across cross-functional teams, and applying best practices in {skills_str}. Strong advocate for clean architecture, automated testing, and continuous delivery.

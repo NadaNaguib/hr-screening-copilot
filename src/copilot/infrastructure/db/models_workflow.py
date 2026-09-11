@@ -1,4 +1,5 @@
 """Workflow ORM models: review tasks, SLA rules, shortlists, audit events."""
+
 from __future__ import annotations
 
 import uuid
@@ -15,7 +16,6 @@ from copilot.infrastructure.db.base import Base
 if TYPE_CHECKING:
     from copilot.infrastructure.db.models_core import JobORM
     from copilot.infrastructure.db.models_screening import CandidateORM
-
 
 
 def _uuid() -> uuid.UUID:

@@ -1,4 +1,5 @@
 """Deterministic bias guard with audit trail."""
+
 from __future__ import annotations
 
 from copilot.domain.bias_rules import BiasFinding, BiasRules

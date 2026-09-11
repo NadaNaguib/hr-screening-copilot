@@ -1,4 +1,5 @@
 """Ingest a generic document into the vector store."""
+
 from __future__ import annotations
 
 from uuid import UUID
@@ -44,8 +45,12 @@ async def ingest_document(
     await container.session.refresh(doc)
 
     chunks = _chunk_text(raw_text)
-    chunk_data = [(text, None, {"index": i, "filename": filename}) for i, (text, _) in enumerate(chunks)]
-    embeddings = await container.embedding.embed([c[0] for c in chunk_data], correlation_id=correlation_id)
+    chunk_data = [
+        (text, None, {"index": i, "filename": filename}) for i, (text, _) in enumerate(chunks)
+    ]
+    embeddings = await container.embedding.embed(
+        [c[0] for c in chunk_data], correlation_id=correlation_id
+    )
     await container.vector_store.ingest_chunks(
         job_id=job_id,
         document_id=doc.id,

@@ -1,4 +1,5 @@
 """Rubric scorer: deterministic numeric aggregation + LLM justification."""
+
 from __future__ import annotations
 
 from copilot.domain.candidate import Candidate

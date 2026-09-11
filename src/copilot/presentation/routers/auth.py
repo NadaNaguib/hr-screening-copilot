@@ -1,4 +1,5 @@
 """Authentication endpoints."""
+
 from __future__ import annotations
 
 from uuid import UUID
@@ -36,7 +37,9 @@ class UserResponse(BaseModel):
 
 @router.post("/login")
 async def login(request: LoginRequest, session: AsyncSession = Depends(get_session)) -> dict:
-    result = await session.execute(select(UserORM).where(UserORM.email == request.email, UserORM.is_active))
+    result = await session.execute(
+        select(UserORM).where(UserORM.email == request.email, UserORM.is_active)
+    )
     user = result.scalar_one_or_none()
     if user is None or not verify_password(request.password, user.hashed_password):
         raise HTTPException(
@@ -44,7 +47,12 @@ async def login(request: LoginRequest, session: AsyncSession = Depends(get_sessi
             detail={"error_code": "invalid_credentials", "message": "Invalid email or password"},
         )
     token = create_access_token(user.id, user.role)
-    return {"access_token": token, "token_type": "bearer", "role": user.role, "user_id": str(user.id)}
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "role": user.role,
+        "user_id": str(user.id),
+    }
 
 
 @router.post("/users", response_model=UserResponse)
@@ -84,8 +92,10 @@ async def delete_user(
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     if str(user.id) == str(admin_user.get("id")):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete currently logged in account")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete currently logged in account",
+        )
     await session.delete(user)
     await session.commit()
     return {"status": "deleted", "id": str(user_id)}
-

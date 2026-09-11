@@ -1,4 +1,5 @@
 """Rubric ORM models."""
+
 from __future__ import annotations
 
 import uuid
@@ -13,7 +14,6 @@ from copilot.infrastructure.db.base import Base
 
 if TYPE_CHECKING:
     from copilot.infrastructure.db.models_core import JobORM
-
 
 
 def _uuid() -> uuid.UUID:

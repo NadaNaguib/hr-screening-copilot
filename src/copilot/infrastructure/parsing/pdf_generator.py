@@ -1,9 +1,11 @@
 """Generate professional, styled PDF resumes using ReportLab."""
+
 from __future__ import annotations
 
-from io import BytesIO
 import re
+from io import BytesIO
 from typing import Any
+
 from reportlab.lib.colors import HexColor
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -123,13 +125,17 @@ def generate_cv_pdf(
     meta_parts.append("Status: Active Verified Candidate")
     story.append(Paragraph(" &nbsp;•&nbsp; ".join(meta_parts), meta_style))
     story.append(Spacer(1, 8))
-    story.append(HRFlowable(width="100%", thickness=1.5, color=primary_color, spaceBefore=2, spaceAfter=8))
+    story.append(
+        HRFlowable(width="100%", thickness=1.5, color=primary_color, spaceBefore=2, spaceAfter=8)
+    )
 
     # 2. Extracted Skills Grid
     candidate_skills = skills or []
     if candidate_skills:
         story.append(Paragraph("CORE COMPETENCIES & TECHNICAL SKILLS", section_heading))
-        story.append(HRFlowable(width="100%", thickness=0.5, color=border_color, spaceBefore=1, spaceAfter=6))
+        story.append(
+            HRFlowable(width="100%", thickness=0.5, color=border_color, spaceBefore=1, spaceAfter=6)
+        )
         # Format skills in a compact table (up to 4 columns)
         skill_rows = []
         cols = 4
@@ -158,7 +164,9 @@ def generate_cv_pdf(
 
     # 3. Work Experience & Full Resume Content
     story.append(Paragraph("DETAILED PROFESSIONAL EXPERIENCE & PROFILE", section_heading))
-    story.append(HRFlowable(width="100%", thickness=0.5, color=border_color, spaceBefore=1, spaceAfter=6))
+    story.append(
+        HRFlowable(width="100%", thickness=0.5, color=border_color, spaceBefore=1, spaceAfter=6)
+    )
 
     # Parse sections from raw text
     paragraphs = cv_text.split("\n")
@@ -171,11 +179,17 @@ def generate_cv_pdf(
             clean_head = p.replace("#", "").strip()
             story.append(Spacer(1, 4))
             story.append(Paragraph(clean_head, section_heading))
-            story.append(HRFlowable(width="100%", thickness=0.5, color=border_color, spaceBefore=1, spaceAfter=4))
+            story.append(
+                HRFlowable(
+                    width="100%", thickness=0.5, color=border_color, spaceBefore=1, spaceAfter=4
+                )
+            )
         elif p.startswith("- ") or p.startswith("• ") or p.startswith("* "):
             bullet_text = p[2:].strip()
             # Escape HTML brackets
-            bullet_text = bullet_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            bullet_text = (
+                bullet_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            )
             story.append(Paragraph(f"• {bullet_text}", bullet_style))
         else:
             p_clean = p.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -184,7 +198,9 @@ def generate_cv_pdf(
 
     # Footer notice
     story.append(Spacer(1, 10))
-    story.append(HRFlowable(width="100%", thickness=0.5, color=border_color, spaceBefore=4, spaceAfter=4))
+    story.append(
+        HRFlowable(width="100%", thickness=0.5, color=border_color, spaceBefore=4, spaceAfter=4)
+    )
     story.append(
         Paragraph(
             "HR Screening Copilot • Automated Document Intelligence & Agentic RAG • Confidential Candidate Record",

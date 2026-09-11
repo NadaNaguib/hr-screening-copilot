@@ -1,4 +1,5 @@
 """Health endpoints."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, status
@@ -22,4 +23,7 @@ async def ready(session: AsyncSession = Depends(get_session)) -> JSONResponse:
         await session.execute(text("SELECT 1"))
         return JSONResponse({"status": "ready"}, status_code=status.HTTP_200_OK)
     except Exception as exc:
-        return JSONResponse({"status": "not_ready", "error": str(exc)}, status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return JSONResponse(
+            {"status": "not_ready", "error": str(exc)},
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )

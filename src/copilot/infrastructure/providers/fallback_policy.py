@@ -1,11 +1,11 @@
 """LLM fallback policy with intelligent priority queue cascade and task-tier routing."""
+
 from __future__ import annotations
 
 import asyncio
 import logging
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 
 from copilot.application.ports.llm_port import LLMPort, LLMResponse
 from copilot.infrastructure.providers.tiered_router import TaskTier
@@ -52,7 +52,11 @@ class FallbackLLMProvider(LLMPort):
         correlation_id: str = "",
     ) -> LLMResponse:
         from copilot.infrastructure.config.ai_config import AIConfigManager
-        from copilot.infrastructure.observability.token_cost import FailureRecord, TokenCostRecord, get_ledger
+        from copilot.infrastructure.observability.token_cost import (
+            FailureRecord,
+            TokenCostRecord,
+            get_ledger,
+        )
         from copilot.infrastructure.providers.gemini_rest_adapter import GeminiRestAdapter
 
         ai_config = AIConfigManager().config
@@ -167,7 +171,9 @@ class FallbackLLMProvider(LLMPort):
 
                     if is_rate_limit or is_unavailable:
                         next_model = (
-                            cascade_models[model_idx + 1] if model_idx + 1 < len(cascade_models) else None
+                            cascade_models[model_idx + 1]
+                            if model_idx + 1 < len(cascade_models)
+                            else None
                         )
                         logger.warning(
                             "[PriorityQueueCascade] Model '%s' encountered limit/error (%s). "
@@ -188,7 +194,7 @@ class FallbackLLMProvider(LLMPort):
                 model=preferred_model,
                 error=str(last_error) if last_error else "unknown",
                 correlation_id=correlation_id,
-                timestamp=datetime.now(timezone.utc).isoformat(),
+                timestamp=datetime.now(UTC).isoformat(),
             )
         )
         return LLMResponse(
