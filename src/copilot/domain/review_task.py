@@ -61,8 +61,13 @@ _STATUS_TRANSITIONS: dict[ReviewAction, ReviewStatus] = {
 _REASON_ACTIONS = {
     ReviewAction.REJECT_AT_TRIAGE,
     ReviewAction.REJECT,
-    ReviewAction.EDIT_AND_APPROVE,
 }
+
+# Only a rejection must be justified. Approving or editing/approving a candidate
+# never requires a comment, so the UI can save seamless edits.
+REJECTION_COMMENT_REQUIRED = (
+    "A comment explaining the decision is required before rejecting a candidate."
+)
 
 
 def _requires_reason(action: ReviewAction) -> bool:
@@ -114,7 +119,7 @@ class ReviewTask:
                 self.status = ReviewStatus.APPROVED
         else:
             if _requires_reason(action) and not reason:
-                raise ValidationError(f"Action '{action.value}' requires a reason")
+                raise ValidationError(REJECTION_COMMENT_REQUIRED)
             self.status = _STATUS_TRANSITIONS[action]
         if action == ReviewAction.REJECT_AT_TRIAGE:
             self.triage_reason = reason

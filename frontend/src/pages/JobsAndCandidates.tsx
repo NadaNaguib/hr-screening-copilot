@@ -65,6 +65,8 @@ interface Candidate {
   overall_score: number | null
   years_of_experience: number
   skills: string[]
+  probes_generated?: boolean
+  interview_probes?: { category: string; question: string }[]
 }
 
 export function JobsAndCandidates() {
@@ -82,6 +84,7 @@ export function JobsAndCandidates() {
   const [deletingJob, setDeletingJob] = useState(false)
   const [deletingCandidateId, setDeletingCandidateId] = useState<string | null>(null)
   const [runningPipelineId, setRunningPipelineId] = useState<string | null>(null)
+  const [generatingProbesId, setGeneratingProbesId] = useState<string | null>(null)
   const [expandedSkills, setExpandedSkills] = useState<Record<string, boolean>>({})
   const [selectedCv, setSelectedCv] = useState<{ id: string; name?: string } | null>(null)
 
@@ -245,6 +248,21 @@ export function JobsAndCandidates() {
       toast.error(err.message || "Failed to run pipeline", { id: toastId })
     } finally {
       setRunningPipelineId(null)
+    }
+  }
+
+  async function generateProbes(candidateId: string, name: string) {
+    setGeneratingProbesId(candidateId)
+    const toastId = toast.loading(`Generating interview probes for ${name || "candidate"}...`)
+    try {
+      const res = await apiClient.post(`/candidates/${candidateId}/generate-probes`, {})
+      const count = (res.data.interview_probes || []).length
+      toast.success(`Generated ${count} interview probe${count === 1 ? "" : "s"}!`, { id: toastId })
+      await fetchCandidates()
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate interview probes", { id: toastId })
+    } finally {
+      setGeneratingProbesId(null)
     }
   }
 
@@ -482,6 +500,7 @@ export function JobsAndCandidates() {
               {candidates.map((c) => {
                 const isRunning = runningPipelineId === c.id
                 const isDeleting = deletingCandidateId === c.id
+                const isGeneratingProbes = generatingProbesId === c.id
                 return (
                   <tr key={c.id} className="hover:bg-surface-page/50 transition">
                     <td className="px-4 py-3.5">
@@ -546,6 +565,14 @@ export function JobsAndCandidates() {
                         {c.status === "uploaded" && <UserCheck className="w-3 h-3" />}
                         {c.status}
                       </span>
+                      {c.probes_generated && (
+                        <span
+                          title="AI interview probes are ready"
+                          className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-100 text-purple-800 border border-purple-200"
+                        >
+                          📋 Probes Ready
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3.5">
                       {c.overall_score !== null && c.overall_score !== undefined ? (
@@ -578,6 +605,21 @@ export function JobsAndCandidates() {
                             <Play className={`w-3 h-3 ${isRunning ? "animate-spin" : ""}`} />
                             {isRunning ? "Screening…" : "Run pipeline"}
                           </button>
+                          {c.status === "screened" && (
+                            <button
+                              onClick={() => generateProbes(c.id, c.full_name)}
+                              disabled={isGeneratingProbes || isRunning || isDeleting}
+                              title="Generate 3-5 tailored interview probes for this candidate"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded-md font-medium transition disabled:opacity-50"
+                            >
+                              <Sparkles className={`w-3 h-3 ${isGeneratingProbes ? "animate-spin" : ""}`} />
+                              {isGeneratingProbes
+                                ? "Generating…"
+                                : c.probes_generated
+                                ? "Regenerate Probes"
+                                : "Generate Probes"}
+                            </button>
+                          )}
                           <button
                             onClick={() => deleteCandidate(c.id, c.full_name)}
                             disabled={isDeleting || isRunning}

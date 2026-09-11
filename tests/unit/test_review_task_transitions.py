@@ -71,3 +71,22 @@ def test_admin_override_with_reason_succeeds() -> None:
     task = _task(ReviewStatus.PENDING_TRIAGE)
     task.apply_action("admin", ReviewAction.ADMIN_OVERRIDE, reason="Break-glass override")
     assert task.status == ReviewStatus.PENDING_MANAGER_REVIEW
+
+
+def test_reject_requires_a_comment() -> None:
+    task = _task(ReviewStatus.PENDING_MANAGER_REVIEW)
+    with pytest.raises(ValidationError, match="comment explaining the decision is required"):
+        task.apply_action("hiring_manager", ReviewAction.REJECT, reason="")
+
+
+def test_approve_does_not_require_a_comment() -> None:
+    task = _task(ReviewStatus.PENDING_MANAGER_REVIEW)
+    task.apply_action("hiring_manager", ReviewAction.APPROVE)
+    assert task.status == ReviewStatus.APPROVED
+
+
+def test_edit_and_approve_does_not_require_a_comment() -> None:
+    task = _task(ReviewStatus.PENDING_MANAGER_REVIEW)
+    task.apply_action("hiring_manager", ReviewAction.EDIT_AND_APPROVE)
+    assert task.status == ReviewStatus.EDITED_AND_APPROVED
+

@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
+from copilot.domain.errors import DomainError
 from copilot.infrastructure.db.session import async_session_factory, close_engine
 from copilot.infrastructure.observability.correlation import get_correlation_id, set_correlation_id
 from copilot.infrastructure.observability.logging import configure_logging
@@ -29,6 +30,21 @@ from copilot.presentation.routers import (
 )
 
 configure_logging()
+
+# Domain errors carry an ``error_code``. Map them onto meaningful HTTP statuses so
+# e.g. a missing rejection comment returns 400 (not a generic 500 "Server Error").
+_DOMAIN_ERROR_STATUS: dict[str, int] = {
+    "validation_error": 400,
+    "unparseable_document": 400,
+    "not_found": 404,
+    "authorization_error": 403,
+    "conflict": 409,
+    "duplicate_candidate": 409,
+    "invalid_transition": 409,
+    "sla_breach": 409,
+    "llm_provider_error": 502,
+    "pipeline_error": 500,
+}
 
 
 @asynccontextmanager
@@ -71,6 +87,18 @@ def create_app() -> FastAPI:
         response = await call_next(request)
         response.headers["X-Correlation-ID"] = cid
         return response
+
+    @app.exception_handler(DomainError)
+    async def domain_exception_handler(request: Request, exc: DomainError):
+        status_code = _DOMAIN_ERROR_STATUS.get(exc.code, 500)
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "error_code": exc.code,
+                "message": exc.message,
+                "correlation_id": get_correlation_id(),
+            },
+        )
 
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):

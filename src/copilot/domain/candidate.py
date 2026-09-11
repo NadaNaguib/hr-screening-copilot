@@ -38,6 +38,8 @@ class Candidate:
     status: CandidateStatus = CandidateStatus.UPLOADED
     overall_score: float | None = None
     priority: str = "MEDIUM"
+    interview_probes: list[dict[str, Any]] = field(default_factory=list)
+    probes_generated: bool = False
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
 
@@ -54,6 +56,12 @@ class Candidate:
     def mark_failed(self) -> None:
         """Transition to failed."""
         self.status = CandidateStatus.FAILED
+
+    def set_interview_probes(self, probes: list[dict[str, Any]]) -> None:
+        """Attach AI-generated interview probes and flag them as ready."""
+        self.interview_probes = probes
+        self.probes_generated = bool(probes)
+        self.updated_at = datetime.utcnow()
 
     def add_job(self, job_id: UUID) -> None:
         """Assign to a job."""
