@@ -131,7 +131,8 @@ async def upload_candidate_endpoint(
 async def generate_candidate_probes(
     candidate_id: UUID,
     container: Container = Depends(get_container),
-    user: dict = Depends(require_roles("admin", "hiring_manager", "hr_recruiter")),
+    # Admin is intentionally excluded: probes are read-only for Admin (403 on write).
+    user: dict = Depends(require_roles("hiring_manager", "hr_recruiter")),
 ) -> dict:
     """Generate and persist tailored interview probes for a screened candidate.
 
@@ -181,7 +182,8 @@ async def update_candidate_probes(
     candidate_id: UUID,
     payload: InterviewProbesUpdate,
     container: Container = Depends(get_container),
-    user: dict = Depends(require_roles("admin", "hiring_manager", "hr_recruiter")),
+    # Admin is intentionally excluded: probes are read-only for Admin (403 on write).
+    user: dict = Depends(require_roles("hiring_manager", "hr_recruiter")),
 ) -> dict:
     """Persist recruiter/manager edits to a candidate's interview probes.
 

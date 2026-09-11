@@ -147,3 +147,38 @@ async def test_manager_cannot_access_observability(manager_user):
             headers={"Authorization": f"Bearer {token}"},
         )
     assert response.status_code == 403
+
+
+# --- Interview probes are read-only for Admin (enforced at the API layer) ---
+
+
+async def test_admin_cannot_generate_probes(admin_user):
+    token = create_access_token(admin_user.id, admin_user.role)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            f"/api/v1/candidates/{uuid4()}/generate-probes",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert response.status_code == 403
+
+
+async def test_admin_cannot_update_probes(admin_user):
+    token = create_access_token(admin_user.id, admin_user.role)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.put(
+            f"/api/v1/candidates/{uuid4()}/probes",
+            json={"interview_probes": [{"category": "technical", "question": "Q?"}]},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert response.status_code == 403
+
+
+async def test_admin_cannot_run_bulk_actions(admin_user):
+    token = create_access_token(admin_user.id, admin_user.role)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/api/v1/review-queue/bulk",
+            json={"task_ids": [str(uuid4())], "action": "forward_to_manager"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert response.status_code == 403

@@ -50,10 +50,12 @@ async def query_review_queue(
     candidate_map: dict[UUID, str] = {}
     job_map: dict[UUID, str] = {}
     probes_map: dict[UUID, tuple[bool, list]] = {}
+    score_map: dict[UUID, float | None] = {}
     if tasks:
         all_candidates = await container.candidate_repository.list_candidates()
         candidate_map = {c.id: c.full_name for c in all_candidates}
         probes_map = {c.id: (c.probes_generated, c.interview_probes) for c in all_candidates}
+        score_map = {c.id: c.overall_score for c in all_candidates}
         all_jobs = await container.document_repository.list_jobs()
         job_map = {j.id: j.title for j in all_jobs}
 
@@ -68,6 +70,7 @@ async def query_review_queue(
             "job_title": job_map.get(t.job_id, "General Pool") if t.job_id else "General Pool",
             "status": t.status.value,
             "priority": t.priority,
+            "overall_score": score_map.get(t.candidate_id) if t.candidate_id else None,
             "sla_phase": t.sla_phase(),
             "sla_active": t.active_sla_deadline() is not None and t.sla_frozen_at is None,
             "sla_deadline_at": utc_iso(t.active_sla_deadline()),
