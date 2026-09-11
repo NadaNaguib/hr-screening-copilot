@@ -5,9 +5,10 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from copilot.application.use_cases.admin_override import admin_override
+from copilot.application.use_cases.bulk_review_action import bulk_review_action
 from copilot.application.use_cases.decide_candidate import decide_candidate
 from copilot.application.use_cases.query_review_queue import query_review_queue
 from copilot.application.use_cases.triage_candidate import triage_candidate
@@ -39,6 +40,12 @@ class AdminOverrideRequest(BaseModel):
 class UpdatePriorityRequest(BaseModel):
     task_id: UUID
     priority: str  # HIGH | MEDIUM | LOW
+
+
+class BulkActionRequest(BaseModel):
+    task_ids: list[UUID] = Field(min_length=1, max_length=200)
+    action: str  # forward_to_manager | reject_at_triage | approve | reject | edit_and_approve
+    reason: str | None = None
 
 
 @router.get("/review-queue")
@@ -122,6 +129,24 @@ async def post_update_priority(
         role=user["role"],
         task_id=request.task_id,
         priority=request.priority,
+        correlation_id=get_correlation_id(),
+    )
+
+
+@router.post("/review-queue/bulk")
+async def post_bulk_action(
+    request: BulkActionRequest,
+    container: Container = Depends(get_container),
+    # Admin is intentionally excluded: bulk mutations are read-only-disabled for admin.
+    user: dict = Depends(require_roles("hr_recruiter", "hiring_manager")),
+) -> dict:
+    return await bulk_review_action(
+        container=container,
+        actor_id=user["id"],
+        role=user["role"],
+        task_ids=request.task_ids,
+        action=request.action,
+        reason=request.reason,
         correlation_id=get_correlation_id(),
     )
 
