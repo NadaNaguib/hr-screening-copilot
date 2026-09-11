@@ -27,6 +27,19 @@ class Priority(str, Enum):
         return cls.MEDIUM
 
 
+def normalize_priority(value: str | Priority | None) -> str:
+    """Canonicalise a priority label to a trimmed, UPPERCASE string.
+
+    Presets (``high``/``medium``/``low``) map to ``HIGH``/``MEDIUM``/``LOW`` while
+    arbitrary custom labels (e.g. ``critical``) are preserved in upper case.
+    Empty/None falls back to ``MEDIUM``.
+    """
+    if isinstance(value, Priority):
+        value = value.value
+    cleaned = " ".join(str(value or "").split()).upper()
+    return cleaned or "MEDIUM"
+
+
 _GLOBAL_SLA_HOURS: dict[Priority, int] = {
     Priority.HIGH: 24,
     Priority.MEDIUM: 48,
@@ -38,13 +51,17 @@ _GLOBAL_SLA_HOURS: dict[Priority, int] = {
 class SLARule:
     id: UUID = field(default_factory=uuid4)
     job_id: UUID | None = None
-    priority: Priority = Priority.MEDIUM
+    priority: str = "MEDIUM"
     triage_hours: int = 24
     decision_hours: int = 48
     active: bool = True
     created_by: UUID | None = None
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
+
+    def __post_init__(self) -> None:
+        # Accept enum members or free-form labels, always stored UPPERCASE.
+        self.priority = normalize_priority(self.priority)
 
     def triage_delta(self) -> timedelta:
         return timedelta(hours=self.triage_hours)
@@ -68,7 +85,7 @@ class SLARule:
         return {
             "id": str(self.id),
             "job_id": str(self.job_id) if self.job_id else None,
-            "priority": self.priority.value,
+            "priority": normalize_priority(self.priority),
             "triage_hours": self.triage_hours,
             "decision_hours": self.decision_hours,
             "active": self.active,

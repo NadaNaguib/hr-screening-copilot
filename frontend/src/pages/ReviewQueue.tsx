@@ -33,6 +33,11 @@ interface Task {
   priority: string
   triage_deadline_at: string | null
   decision_deadline_at: string | null
+  sla_phase?: string
+  sla_active?: boolean
+  sla_deadline_at?: string | null
+  sla_resolved_at?: string | null
+  sla_outcome?: string | null
   triage_reason: string | null
   manager_comment: string | null
   admin_override_reason: string | null
@@ -46,10 +51,23 @@ interface Probe {
   question: string
 }
 
+/**
+ * Parse a backend deadline into epoch ms.
+ *
+ * The API emits explicit-offset ISO strings (``...+00:00``), but we defensively
+ * treat a bare ``"...T12:00:00"`` (no zone) as UTC rather than local time —
+ * otherwise a UTC+3 client would see a 24h window as 21h.
+ */
+function parseUtcMs(iso: string): number {
+  const value = iso.trim()
+  const hasZone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(value)
+  return new Date(hasZone ? value : `${value}Z`).getTime()
+}
+
 /** Returns { label, urgent, breached } for a deadline ISO string */
 function slaCountdown(deadline: string | null): { label: string; urgent: boolean; breached: boolean } {
   if (!deadline) return { label: "—", urgent: false, breached: false }
-  const diff = new Date(deadline).getTime() - Date.now()
+  const diff = parseUtcMs(deadline) - Date.now()
   if (diff <= 0) return { label: "BREACHED", urgent: true, breached: true }
   const h = Math.floor(diff / 3_600_000)
   const m = Math.floor((diff % 3_600_000) / 60_000)
@@ -68,6 +86,8 @@ export function ReviewQueue() {
   const [savingProbes, setSavingProbes] = useState(false)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
+  const [priorityFilter, setPriorityFilter] = useState("")
+  const [slaPriorities, setSlaPriorities] = useState<string[]>([])
   const [, setTick] = useState(0)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -81,13 +101,28 @@ export function ReviewQueue() {
 
   useEffect(() => {
     fetchTasks()
-  }, [statusFilter])
+  }, [statusFilter, priorityFilter])
+
+  useEffect(() => {
+    fetchSlaPriorities()
+  }, [])
+
+  async function fetchSlaPriorities() {
+    try {
+      const res = await apiClient.get("/admin/sla-rules/priorities", { silent: true })
+      setSlaPriorities(Array.isArray(res.data) ? res.data : [])
+    } catch {
+      // Fall back to the canonical levels if the SLA API is unavailable.
+      setSlaPriorities(["HIGH", "MEDIUM", "LOW"])
+    }
+  }
 
   async function fetchTasks() {
     setLoading(true)
     try {
       const params: Record<string, string> = {}
       if (statusFilter) params["status"] = statusFilter
+      if (priorityFilter) params["priority"] = priorityFilter
       if (search) params["search"] = search
       const res = await apiClient.get("/review-queue", { params, silent: true })
       setTasks(res.data)
@@ -159,16 +194,23 @@ export function ReviewQueue() {
 
   async function updatePriority(taskId: string, priority: string) {
     const task = tasks.find((t) => t.id === taskId)
-    if (!task || task.priority === priority) return
+    const nextPriority = priority.toUpperCase()
+    if (!task || (task.priority || "").toUpperCase() === nextPriority) return
 
     const originalTasks = [...tasks]
     setActing((a) => ({ ...a, [taskId]: true }))
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, priority } : t)))
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, priority: nextPriority } : t)))
 
     try {
-      await apiClient.post("/review-queue/update-priority", { task_id: taskId, priority }, { silent: true })
-      toast.success(`Priority updated to ${priority}`)
+      const res = await apiClient.post(
+        "/review-queue/update-priority",
+        { task_id: taskId, priority: nextPriority },
+        { silent: true }
+      )
+      toast.success(`Priority updated to ${nextPriority} — SLA timer reset`)
+      // Refresh so the backend-recalculated deadline renders immediately.
       await fetchTasks()
+      return res
     } catch (err: any) {
       toast.error(err.message || "Failed to update priority")
       setTasks(originalTasks)
@@ -281,6 +323,19 @@ export function ReviewQueue() {
             <option value="rejected_by_manager">Rejected by Manager</option>
             <option value="edited_and_approved">Edited & Approved</option>
           </select>
+          <select
+            value={priorityFilter}
+            onChange={(e) => setPriorityFilter(e.target.value)}
+            title="Filter by SLA priority level"
+            className="px-3 py-1.5 border border-surface-border rounded-lg text-sm bg-white"
+          >
+            <option value="">All Priorities</option>
+            {slaPriorities.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
           <button
             onClick={fetchTasks}
             className="px-3 py-1.5 text-sm bg-brand-primary hover:bg-brand-primary/90 text-white font-medium rounded-lg flex items-center gap-1.5 transition shadow-xs"
@@ -307,7 +362,8 @@ export function ReviewQueue() {
             {tasks.map((t) => {
               const normStatus = (t.status || "").toLowerCase()
               const isEscalated = normStatus.includes("escalated")
-              const sla = slaCountdown(activeDeadline(t))
+              const slaResolved = t.sla_active === false || t.sla_phase === "resolved"
+              const sla = slaCountdown(t.sla_deadline_at ?? activeDeadline(t))
               const isTriageStage = normStatus === "pending_triage" || normStatus === "escalated_triage"
               const isManagerStage = normStatus === "pending_manager_review" || normStatus === "escalated_manager"
               const isTerminal = normStatus === "approved" || normStatus === "rejected_at_triage" || normStatus === "rejected_by_manager" || normStatus === "edited_and_approved"
@@ -367,11 +423,19 @@ export function ReviewQueue() {
                         value={(t.priority || "MEDIUM").toUpperCase()}
                         disabled={isBusy}
                         onChange={(e) => updatePriority(t.id, e.target.value)}
+                        title="Change priority — the SLA countdown resets for the current stage"
                         className="px-2 py-1 border border-surface-border rounded-md text-xs bg-white font-semibold shadow-xs"
                       >
-                        <option value="HIGH">HIGH</option>
-                        <option value="MEDIUM">MEDIUM</option>
-                        <option value="LOW">LOW</option>
+                        {Array.from(
+                          new Set([
+                            ...(t.priority ? [t.priority.toUpperCase()] : []),
+                            ...slaPriorities,
+                          ])
+                        ).map((p) => (
+                          <option key={p} value={p}>
+                            {p}
+                          </option>
+                        ))}
                       </select>
                     ) : (
                       <span className={priorityBadgeClass(t.priority)}>{t.priority}</span>
@@ -380,20 +444,38 @@ export function ReviewQueue() {
 
                   {/* SLA Countdown Timer */}
                   <td className="px-4 py-3.5 align-top">
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-surface-muted" />
+                    {slaResolved ? (
                       <span
-                        className={`px-2 py-0.5 rounded text-xs font-mono font-semibold ${
-                          sla.breached
-                            ? "bg-red-100 text-red-800"
-                            : sla.urgent
-                            ? "bg-amber-100 text-amber-800 animate-pulse"
-                            : "bg-emerald-100 text-emerald-800"
+                        title={
+                          t.sla_resolved_at
+                            ? `Resolved ${new Date(parseUtcMs(t.sla_resolved_at)).toLocaleString()}`
+                            : "Workflow resolved"
+                        }
+                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-semibold ${
+                          t.sla_outcome === "breached"
+                            ? "bg-orange-100 text-orange-800 border border-orange-200"
+                            : "bg-emerald-100 text-emerald-800 border border-emerald-200"
                         }`}
                       >
-                        {sla.label}
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        {t.sla_outcome === "breached" ? "Resolved (Breached)" : "Completed in SLA"}
                       </span>
-                    </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-surface-muted" />
+                        <span
+                          className={`px-2 py-0.5 rounded text-xs font-mono font-semibold ${
+                            sla.breached
+                              ? "bg-red-100 text-red-800"
+                              : sla.urgent
+                              ? "bg-amber-100 text-amber-800 animate-pulse"
+                              : "bg-emerald-100 text-emerald-800"
+                          }`}
+                        >
+                          {sla.label}
+                        </span>
+                      </div>
+                    )}
                   </td>
 
                   {/* Note / Comment */}

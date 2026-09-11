@@ -42,5 +42,13 @@ class DocumentRepositoryPort(ABC):
         """Fetch SLA rule for a job (or None if only global defaults exist)."""
 
     @abstractmethod
+    async def list_sla_rules(self, active_only: bool = False) -> list[SLARule]:
+        """Return all configured SLA rules (optionally only active ones)."""
+
+    @abstractmethod
+    async def delete_sla_rule(self, rule_id: UUID) -> bool:
+        """Delete an SLA rule by id. Returns True when a row was removed."""
+
+    @abstractmethod
     async def delete_job(self, job_id: UUID) -> bool:
         """Delete a job and associated review tasks, rules, and rubrics."""

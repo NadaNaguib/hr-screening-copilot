@@ -41,6 +41,8 @@ class ReviewTaskORM(Base):
     triage_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     manager_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     admin_override_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sla_frozen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    sla_outcome: Mapped[str | None] = mapped_column(String(30), nullable=True)
     audit_log: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

@@ -77,6 +77,8 @@ export function JobsAndCandidates() {
   const [newJobDept, setNewJobDept] = useState("Engineering")
   const [newJobDescription, setNewJobDescription] = useState("")
   const [newJobSkills, setNewJobSkills] = useState("")
+  const [newJobPriority, setNewJobPriority] = useState("MEDIUM")
+  const [slaPriorities, setSlaPriorities] = useState<string[]>([])  // active SLA priorities
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -90,7 +92,17 @@ export function JobsAndCandidates() {
 
   useEffect(() => {
     fetchJobs()
+    fetchSlaPriorities()
   }, [])
+
+  async function fetchSlaPriorities() {
+    try {
+      const res = await apiClient.get("/admin/sla-rules/priorities", { silent: true })
+      setSlaPriorities(Array.isArray(res.data) && res.data.length ? res.data : ["HIGH", "MEDIUM", "LOW"])
+    } catch {
+      setSlaPriorities(["HIGH", "MEDIUM", "LOW"])
+    }
+  }
 
   useEffect(() => {
     if (selectedJob) {
@@ -138,6 +150,7 @@ export function JobsAndCandidates() {
         title: newJobTitle.trim(),
         department: newJobDept.trim(),
         description: newJobDescription.trim(),
+        priority: newJobPriority,
         skills,
       })
       const createdId = res.data.id
@@ -145,6 +158,7 @@ export function JobsAndCandidates() {
       setNewJobTitle("")
       setNewJobDescription("")
       setNewJobSkills("")
+      setNewJobPriority("MEDIUM")
       await fetchJobs()
       setSelectedJob(createdId)
     } catch (err: any) {
@@ -383,7 +397,7 @@ export function JobsAndCandidates() {
                 required
               />
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div>
                 <label className="block text-xs text-surface-muted mb-1 font-medium">Department</label>
                 <input
@@ -392,6 +406,21 @@ export function JobsAndCandidates() {
                   onChange={(e) => setNewJobDept(e.target.value)}
                   className="w-full px-3 py-1.5 border border-surface-border rounded-lg text-sm"
                 />
+              </div>
+              <div>
+                <label className="block text-xs text-surface-muted mb-1 font-medium">Default Priority</label>
+                <select
+                  value={newJobPriority}
+                  onChange={(e) => setNewJobPriority(e.target.value)}
+                  title="Candidates created for this job inherit this priority"
+                  className="w-full px-3 py-1.5 border border-surface-border rounded-lg text-sm bg-white"
+                >
+                  {Array.from(new Set([...slaPriorities, newJobPriority])).map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-xs text-surface-muted mb-1 font-medium">Key Skills (comma-separated)</label>

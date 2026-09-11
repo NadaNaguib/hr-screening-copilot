@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import delete, select, text, update
@@ -18,7 +19,7 @@ from copilot.domain.job import Job
 from copilot.domain.review_task import ReviewStatus, ReviewTask
 from copilot.domain.rubric import CriterionWeight, Rubric, RubricCriterion
 from copilot.domain.rubric_score import RubricScore
-from copilot.domain.sla_rule import Priority, SLARule
+from copilot.domain.sla_rule import SLARule, normalize_priority
 from copilot.infrastructure.db.models import (
     AuditEventORM,
     CandidateORM,
@@ -208,6 +209,8 @@ def _review_task_to_domain(orm: ReviewTaskORM) -> ReviewTask:
         triage_reason=orm.triage_reason,
         manager_comment=orm.manager_comment,
         admin_override_reason=orm.admin_override_reason,
+        sla_frozen_at=orm.sla_frozen_at,
+        sla_outcome=orm.sla_outcome,
         audit_log=orm.audit_log,
         created_at=orm.created_at,
         updated_at=orm.updated_at,
@@ -228,6 +231,8 @@ def _review_task_from_domain(domain: ReviewTask) -> ReviewTaskORM:
         triage_reason=domain.triage_reason,
         manager_comment=domain.manager_comment,
         admin_override_reason=domain.admin_override_reason,
+        sla_frozen_at=domain.sla_frozen_at,
+        sla_outcome=domain.sla_outcome,
         audit_log=domain.audit_log,
         created_at=domain.created_at,
         updated_at=domain.updated_at,
@@ -238,7 +243,7 @@ def _sla_rule_to_domain(orm: SLARuleORM) -> SLARule:
     return SLARule(
         id=orm.id,
         job_id=orm.job_id,
-        priority=Priority(orm.priority.lower()),
+        priority=normalize_priority(orm.priority),
         triage_hours=orm.triage_hours,
         decision_hours=orm.decision_hours,
         active=orm.active,
@@ -252,7 +257,7 @@ def _sla_rule_from_domain(domain: SLARule) -> SLARuleORM:
     return SLARuleORM(
         id=domain.id,
         job_id=domain.job_id,
-        priority=domain.priority.value,
+        priority=normalize_priority(domain.priority),
         triage_hours=domain.triage_hours,
         decision_hours=domain.decision_hours,
         active=domain.active,
@@ -299,10 +304,29 @@ class SqlAlchemyDocumentRepository(DocumentRepositoryPort):
 
     async def save_sla_rule(self, rule: SLARule) -> SLARule:
         orm = _sla_rule_from_domain(rule)
-        await self._session.merge(orm)
+        # ``merge`` returns the *persistent* instance for a transient input; the
+        # passed object stays transient, so the result MUST be reassigned before
+        # flush/refresh (otherwise refresh raises InvalidRequestError -> HTTP 500).
+        orm = await self._session.merge(orm)
         await self._session.flush()
         await self._session.refresh(orm)
         return _sla_rule_to_domain(orm)
+
+    async def list_sla_rules(self, active_only: bool = False) -> list[SLARule]:
+        stmt = select(SLARuleORM)
+        if active_only:
+            stmt = stmt.where(SLARuleORM.active)
+        stmt = stmt.order_by(SLARuleORM.priority, SLARuleORM.created_at.desc())
+        result = await self._session.execute(stmt)
+        return [_sla_rule_to_domain(orm) for orm in result.scalars().all()]
+
+    async def delete_sla_rule(self, rule_id: UUID) -> bool:
+        orm = await self._session.get(SLARuleORM, rule_id)
+        if not orm:
+            return False
+        await self._session.delete(orm)
+        await self._session.flush()
+        return True
 
     async def get_sla_rule_for_job(self, job_id: UUID | None) -> SLARule | None:
         result = await self._session.execute(
@@ -460,6 +484,7 @@ class SqlAlchemyReviewTaskRepository(ReviewTaskRepositoryPort):
         role: str | None = None,
         assignee_id: UUID | None = None,
         search: str | None = None,
+        priority: str | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[ReviewTask]:
@@ -467,8 +492,41 @@ class SqlAlchemyReviewTaskRepository(ReviewTaskRepositoryPort):
         if job_id is not None:
             stmt = stmt.where(ReviewTaskORM.job_id == job_id)
         if status:
-            stmt = stmt.where(ReviewTaskORM.status.in_(status))
+            # The API sends lower-case values; the native enum column is keyed by
+            # member name, so coerce to ReviewStatus members before filtering.
+            statuses: list[ReviewStatus] = []
+            for raw in status:
+                try:
+                    statuses.append(ReviewStatus(raw))
+                except ValueError:
+                    continue
+            if statuses:
+                stmt = stmt.where(ReviewTaskORM.status.in_(statuses))
+        if priority:
+            stmt = stmt.where(ReviewTaskORM.priority.ilike(priority))
         stmt = stmt.order_by(ReviewTaskORM.created_at.desc()).limit(limit).offset(offset)
+        result = await self._session.execute(stmt)
+        return [_review_task_to_domain(orm) for orm in result.scalars().all()]
+
+    async def list_breached_tasks(self, stage: str, now: datetime) -> list[ReviewTask]:
+        if stage == "triage":
+            stmt = select(ReviewTaskORM).where(
+                ReviewTaskORM.status.in_(
+                    [ReviewStatus.PENDING_TRIAGE, ReviewStatus.ESCALATED_TRIAGE]
+                ),
+                ReviewTaskORM.triage_deadline_at.isnot(None),
+                ReviewTaskORM.triage_deadline_at < now,
+                ReviewTaskORM.sla_frozen_at.is_(None),
+            )
+        else:
+            stmt = select(ReviewTaskORM).where(
+                ReviewTaskORM.status.in_(
+                    [ReviewStatus.PENDING_MANAGER_REVIEW, ReviewStatus.ESCALATED_MANAGER]
+                ),
+                ReviewTaskORM.decision_deadline_at.isnot(None),
+                ReviewTaskORM.decision_deadline_at < now,
+                ReviewTaskORM.sla_frozen_at.is_(None),
+            )
         result = await self._session.execute(stmt)
         return [_review_task_to_domain(orm) for orm in result.scalars().all()]
 

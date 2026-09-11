@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from datetime import datetime
 from uuid import UUID
 
 from copilot.domain.review_task import ReviewTask
@@ -36,10 +37,15 @@ class ReviewTaskRepositoryPort(ABC):
         role: str | None = None,
         assignee_id: UUID | None = None,
         search: str | None = None,
+        priority: str | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[ReviewTask]:
         """Query tasks according to role-aware filters."""
+
+    @abstractmethod
+    async def list_breached_tasks(self, stage: str, now: datetime) -> list[ReviewTask]:
+        """Return unresolved tasks whose active-phase SLA deadline has passed."""
 
     @abstractmethod
     async def get_sla_rule_for_job(self, job_id: UUID | None) -> SLARule | None:

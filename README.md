@@ -245,5 +245,6 @@ Results are written to `docs/EVALUATION.md`.
 | Login returns 401 | Wrong password or seed not run | Confirm seed ran: `docker compose logs migrate` |
 | pgvector embedding errors | Migration used wrong column type | Run `alembic upgrade head` to apply latest migration |
 | Chat returns empty | Vector index empty | Upload at least one CV and run the pipeline first |
+| New UI changes not visible after `git pull` + `docker compose up` | A stale host `frontend/dist/` was bind-mounted over the image build | Fixed: `frontend/dist/` is no longer mounted. Rebuild with `docker compose up --build -d web`, then hard-refresh (Ctrl+Shift+R) |
 | SLA timer shows `—` | Task was created without SLA rules set | Create SLA rules in Admin → SLA Settings |
 
