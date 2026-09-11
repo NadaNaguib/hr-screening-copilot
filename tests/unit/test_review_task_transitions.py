@@ -147,3 +147,17 @@ def test_decision_phase_uses_decision_deadline() -> None:
     task.decision_deadline_at = datetime.utcnow() + timedelta(hours=50)
     assert task.sla_phase() == "decision"
     assert task.active_sla_deadline() == task.decision_deadline_at
+
+
+def test_approve_after_probe_edits_becomes_edited_and_approved() -> None:
+    task = _task(ReviewStatus.PENDING_MANAGER_REVIEW)
+    task.probes_edited = True
+    task.apply_action("hiring_manager", ReviewAction.APPROVE)
+    assert task.status == ReviewStatus.EDITED_AND_APPROVED
+
+
+def test_approve_without_probe_edits_stays_approved() -> None:
+    task = _task(ReviewStatus.PENDING_MANAGER_REVIEW)
+    assert task.probes_edited is False
+    task.apply_action("hiring_manager", ReviewAction.APPROVE)
+    assert task.status == ReviewStatus.APPROVED

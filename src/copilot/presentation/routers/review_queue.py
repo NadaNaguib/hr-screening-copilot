@@ -51,7 +51,10 @@ class BulkActionRequest(BaseModel):
 @router.get("/review-queue")
 async def get_review_queue(
     job_id: UUID | None = None,
-    status: list[str] | None = None,
+    # The UI sends a single status value; coerce it to the list the use case
+    # expects. (A bare ``list[str]`` query param is not reliably parsed from a
+    # single ``?status=...`` value, which silently disabled the filter.)
+    status: str | None = None,
     search: str | None = None,
     priority: str | None = None,
     container: Container = Depends(get_container),
@@ -61,7 +64,7 @@ async def get_review_queue(
         container=container,
         role=user["role"],
         job_id=job_id,
-        status=status,
+        status=[status] if status else None,
         search=search,
         priority=priority,
     )
