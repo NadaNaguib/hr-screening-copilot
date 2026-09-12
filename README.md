@@ -69,7 +69,7 @@ Open **http://localhost:3000** and log in with a demo account.
 | `DATABASE_URL` | Auto-set | Set automatically by docker-compose. Override for external Postgres |
 | `GEMINI_MODEL` | No | Model name (default: `gemini-1.5-flash`) |
 | `GEMINI_EMBEDDING_MODEL` | No | Embedding model (default: `text-embedding-004`) |
-| `SIMULATE_AGENT_FAILURE` | No | Set to `true` to force orchestrator degrade path (testing) |
+| `SIMULATE_AGENT_FAILURE` | No | Set to `true` to force the Plain RAG degrade path in both Copilot Chat and the screening pipeline (testing) |
 | `CORS_ORIGINS` | No | Comma-separated allowed origins (default: `http://localhost:3000`) |
 
 ---
