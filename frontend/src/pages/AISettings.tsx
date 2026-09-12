@@ -178,7 +178,7 @@ export function AISettings() {
   if (loading || !config) {
     return (
       <div className="space-y-6">
-        <h2 className="text-2xl font-heading font-semibold text-surface-text">AI Control Panel & Telemetry</h2>
+        <h2 className="text-2xl font-bold text-gray-900">AI Control Panel & Telemetry</h2>
         <Skeleton className="h-40 w-full" />
         <Skeleton className="h-48 w-full" />
       </div>
@@ -189,10 +189,7 @@ export function AISettings() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-heading font-semibold text-surface-text">AI Architecture, Priority Queue & Telemetry</h2>
-          <p className="text-sm text-surface-muted mt-1">
-            Configure custom LLM models, automated priority limit cascades, and task-fit quota protection.
-          </p>
+          <h2 className="text-2xl font-bold text-gray-900">AI Architecture, Priority Queue & Telemetry</h2>
         </div>
         <button
           onClick={load}

@@ -346,12 +346,9 @@ export function CopilotChat() {
       {/* Top Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-heading font-bold text-surface-text tracking-tight flex items-center gap-2">
+          <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <Sparkles className="w-6 h-6 text-purple-600" /> HR Screening Copilot
           </h2>
-          <p className="text-xs text-surface-muted">
-            Domain RAG assistant with grounded citations, interactive CV inspector, and full audit trail verification.
-          </p>
         </div>
         <button
           onClick={startNewSession}

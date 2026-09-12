@@ -30,12 +30,15 @@ export function CvViewerModal({ candidateId, candidateName, isOpen, onClose }: C
   const [copied, setCopied] = useState(false)
   const [activeTab, setActiveTab] = useState<"pdf" | "text">("pdf")
   const [pdfLoading, setPdfLoading] = useState(true)
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null)
+  const [pdfError, setPdfError] = useState(false)
 
   useEffect(() => {
     if (!isOpen || !candidateId) {
       setData(null)
       setActiveTab("pdf")
       setPdfLoading(true)
+      setPdfError(false)
       return
     }
 
@@ -64,9 +67,45 @@ export function CvViewerModal({ candidateId, candidateName, isOpen, onClose }: C
     }
   }, [isOpen, candidateId])
 
-  if (!isOpen) return null
+  // Fetch the CV document as an authenticated blob so the request carries the
+  // user's Bearer token. Native iframe / window.open / anchor navigation cannot
+  // attach the Authorization header, which previously caused `missing_token`.
+  useEffect(() => {
+    if (!isOpen || !candidateId) {
+      setPdfBlobUrl(null)
+      setPdfError(false)
+      return
+    }
 
-  const pdfUrl = candidateId ? `/api/v1/candidates/${candidateId}/cv/pdf` : ""
+    let isMounted = true
+    let objectUrl: string | null = null
+    setPdfError(false)
+    setPdfLoading(true)
+
+    apiClient
+      .get(`/candidates/${candidateId}/cv/pdf`, { responseType: "blob", silent: true })
+      .then((res) => {
+        if (!isMounted) return
+        objectUrl = URL.createObjectURL(res.data)
+        setPdfBlobUrl(objectUrl)
+      })
+      .catch((err) => {
+        if (!isMounted) return
+        setPdfBlobUrl(null)
+        setPdfError(true)
+        setPdfLoading(false)
+        toast.error(
+          err.response?.data?.message || err.message || "Failed to load the original CV document",
+        )
+      })
+
+    return () => {
+      isMounted = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [isOpen, candidateId])
+
+  if (!isOpen) return null
 
   const handleCopy = () => {
     if (!data?.raw_text) return
@@ -76,20 +115,26 @@ export function CvViewerModal({ candidateId, candidateName, isOpen, onClose }: C
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const handleDownloadPdf = () => {
-    if (!candidateId) return
+  const handleDownloadCv = () => {
+    if (!pdfBlobUrl) {
+      toast.error("The CV document is still loading. Please try again in a moment.")
+      return
+    }
     const link = document.createElement("a")
-    link.href = pdfUrl
+    link.href = pdfBlobUrl
     link.download = `${(data?.full_name || candidateName || "Candidate").replace(/\s+/g, "_")}_CV.pdf`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    toast.success("Downloading original PDF CV...")
+    toast.success("Downloading CV...")
   }
 
-  const handleOpenPdfNewTab = () => {
-    if (!pdfUrl) return
-    window.open(pdfUrl, "_blank", "noopener,noreferrer")
+  const handleOpenCvNewTab = () => {
+    if (!pdfBlobUrl) {
+      toast.error("The CV document is still loading. Please try again in a moment.")
+      return
+    }
+    window.open(pdfBlobUrl, "_blank", "noopener,noreferrer")
   }
 
   return (
@@ -145,7 +190,7 @@ export function CvViewerModal({ candidateId, candidateName, isOpen, onClose }: C
                     : "text-gray-600 hover:text-gray-900"
                 }`}
               >
-                <Eye className="w-3.5 h-3.5" /> Original PDF
+                <Eye className="w-3.5 h-3.5" /> Original File
               </button>
               <button
                 onClick={() => setActiveTab("text")}
@@ -160,18 +205,18 @@ export function CvViewerModal({ candidateId, candidateName, isOpen, onClose }: C
             </div>
 
             <button
-              onClick={handleOpenPdfNewTab}
+              onClick={handleOpenCvNewTab}
               className="px-3 py-1.5 border border-surface-border hover:bg-surface-page text-surface-text text-xs font-semibold rounded-lg flex items-center gap-1.5 transition"
-              title="Open PDF in a full new browser window"
+              title="Open CV in a full new browser window"
             >
               <ExternalLink className="w-3.5 h-3.5 text-indigo-600" /> Open in New Tab
             </button>
             <button
-              onClick={handleDownloadPdf}
+              onClick={handleDownloadCv}
               className="px-3.5 py-1.5 bg-brand-primary hover:bg-brand-primary/90 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 transition shadow-xs"
-              title="Download original PDF CV file"
+              title="Download original CV file"
             >
-              <Download className="w-3.5 h-3.5" /> Download PDF
+              <Download className="w-3.5 h-3.5" /> Download CV
             </button>
             <button
               onClick={onClose}
@@ -221,19 +266,28 @@ export function CvViewerModal({ candidateId, candidateName, isOpen, onClose }: C
             </div>
           ) : activeTab === "pdf" ? (
             <div className="flex-1 w-full h-full relative bg-slate-100 flex flex-col">
-              {pdfLoading && (
+              {pdfLoading && !pdfError && (
                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80 backdrop-blur-2xs">
                   <div className="w-8 h-8 border-3 border-brand-primary/30 border-t-brand-primary rounded-full animate-spin mb-2" />
-                  <span className="text-xs font-medium text-slate-600">Rendering original PDF document...</span>
+                  <span className="text-xs font-medium text-slate-600">Rendering original CV document...</span>
                 </div>
               )}
-              <iframe
-                key={`pdf-${candidateId}`}
-                src={`${pdfUrl}#toolbar=1&navpanes=0`}
-                className="w-full h-full border-none flex-1"
-                title="Candidate Original PDF CV"
-                onLoad={() => setPdfLoading(false)}
-              />
+              {pdfBlobUrl ? (
+                <iframe
+                  key={`pdf-${candidateId}`}
+                  src={`${pdfBlobUrl}#toolbar=1&navpanes=0`}
+                  className="w-full h-full border-none flex-1"
+                  title="Candidate Original CV"
+                  onLoad={() => setPdfLoading(false)}
+                />
+              ) : (
+                pdfError && (
+                  <div className="flex-1 flex flex-col items-center justify-center text-surface-muted space-y-2">
+                    <FileText className="w-8 h-8 text-surface-disabled" />
+                    <p className="text-sm font-medium">Unable to load the original CV document.</p>
+                  </div>
+                )
+              )}
             </div>
           ) : (
             <div className="flex-1 p-6 overflow-y-auto bg-gray-50/70">
@@ -251,25 +305,11 @@ export function CvViewerModal({ candidateId, candidateName, isOpen, onClose }: C
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-surface-border flex items-center justify-between bg-white text-xs text-surface-muted shrink-0">
+        <div className="px-6 py-3 border-t border-surface-border flex items-center bg-white text-xs text-surface-muted shrink-0">
           <span className="flex items-center gap-2">
             <span>Candidate ID:</span>
             <span className="font-mono text-surface-text font-medium">{data?.candidate_id || candidateId}</span>
           </span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleOpenPdfNewTab}
-              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium mr-2"
-            >
-              Direct PDF Link
-            </button>
-            <button
-              onClick={onClose}
-              className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 text-surface-text font-medium rounded-lg transition"
-            >
-              Close Viewer
-            </button>
-          </div>
         </div>
       </div>
     </div>

@@ -44,7 +44,7 @@ export function Observability() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <h2 className="text-2xl font-heading font-semibold text-surface-text">Observability</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Observability</h2>
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-24 w-full" />
       </div>
@@ -53,7 +53,7 @@ export function Observability() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-heading font-semibold text-surface-text">Observability</h2>
+      <h2 className="text-2xl font-bold text-gray-900">Observability</h2>
       <div className="bg-white p-4 rounded-lg border border-surface-border grid grid-cols-2 gap-4">
         <div><div className="text-sm text-surface-muted">LLM Calls</div><div className="text-xl font-semibold">{cost.calls}</div></div>
         <div><div className="text-sm text-surface-muted">Cost USD</div><div className="text-xl font-semibold">${cost.cost_usd.toFixed(4)}</div></div>
