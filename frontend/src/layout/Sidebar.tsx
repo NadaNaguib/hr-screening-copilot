@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom"
 import { clearAuth, getRole } from "../lib/auth"
+import logo from "../assets/logo.png"
 
 export function Sidebar() {
   const role = getRole()
@@ -18,8 +19,7 @@ export function Sidebar() {
   return (
     <aside className="w-64 bg-white border-r border-surface-border flex flex-col">
       <div className="p-6 border-b border-surface-border">
-        <h1 className="text-xl font-heading font-bold text-brand-primary">Domain Copilot</h1>
-        <p className="text-xs text-surface-muted uppercase tracking-wide mt-1">HR Screening</p>
+        <img src={logo} alt="Vera — AI-Powered Talent Screening" className="h-8 w-auto" />
       </div>
       <nav className="flex-1 p-4 space-y-1">
         {links

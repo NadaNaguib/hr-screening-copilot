@@ -80,7 +80,7 @@ export function UserManagement() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <h2 className="text-2xl font-heading font-semibold text-surface-text">User Management</h2>
+        <h2 className="text-2xl font-bold text-gray-900">User Management</h2>
         <Skeleton className="h-40 w-full" />
         <Skeleton className="h-48 w-full" />
       </div>
@@ -91,10 +91,7 @@ export function UserManagement() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-heading font-semibold text-surface-text">User Management</h2>
-          <p className="text-sm text-surface-muted mt-1">
-            Create, assign roles, and manage team access for Recruiters, Hiring Managers, and Administrators.
-          </p>
+          <h2 className="text-2xl font-bold text-gray-900">User Management</h2>
         </div>
       </div>
 

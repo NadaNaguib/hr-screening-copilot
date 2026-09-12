@@ -285,7 +285,7 @@ export function JobsAndCandidates() {
   if (loading && jobs.length === 0) {
     return (
       <div className="space-y-6">
-        <h2 className="text-2xl font-heading font-semibold text-surface-text">Jobs & Candidates</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Jobs & Candidates</h2>
         <Skeleton className="h-16 w-full" />
         <Skeleton className="h-48 w-full" />
       </div>
@@ -296,8 +296,7 @@ export function JobsAndCandidates() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-heading font-bold text-surface-text tracking-tight">Jobs & Talent Pool</h2>
-          <p className="text-sm text-surface-muted">Manage screening roles, upload resumes, synthesize sample profiles, and execute agent pipelines.</p>
+          <h2 className="text-2xl font-bold text-gray-900">Jobs & Talent Pool</h2>
         </div>
       </div>
 

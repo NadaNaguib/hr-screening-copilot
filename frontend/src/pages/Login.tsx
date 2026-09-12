@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { apiClient } from "../lib/apiClient"
 import { setAuth } from "../lib/auth"
+import logo from "../assets/logo.png"
 
 export function Login({ onLogin }: { onLogin: () => void }) {
   const [email, setEmail] = useState("admin@example.com")
@@ -25,7 +26,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface-page">
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md border border-surface-border">
-        <h1 className="text-2xl font-heading font-bold text-brand-primary mb-2">Domain Copilot</h1>
+        <img src={logo} alt="Vera — AI-Powered Talent Screening" className="h-12 w-auto mb-2" />
         <p className="text-surface-muted mb-6">Log in to your HR screening workspace.</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

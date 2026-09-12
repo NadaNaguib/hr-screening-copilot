@@ -384,7 +384,7 @@ export function ReviewQueue() {
   if (loading && tasks.length === 0) {
     return (
       <div className="space-y-4">
-        <h2 className="text-2xl font-heading font-semibold text-surface-text">Review Queue</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Review Queue</h2>
         <div className="bg-white rounded-xl border border-surface-border p-4 space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-10 w-full" />
@@ -397,10 +397,7 @@ export function ReviewQueue() {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-2xl font-heading font-bold text-surface-text tracking-tight">Human Review Queue (T5)</h2>
-        <p className="text-sm text-surface-muted">
-          Multi-stage approval gate with recruiter triage, manager decisioning, SLA countdowns, and bulk actions.
-        </p>
+        <h2 className="text-2xl font-bold text-gray-900">Human Review Queue</h2>
       </div>
 
       {/* Combined control bar: bulk actions (left) + filters (right) */}

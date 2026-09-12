@@ -145,7 +145,7 @@ export function SettingsSlaRules() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <h2 className="text-2xl font-heading font-semibold text-surface-text">SLA & Escalation Rules</h2>
+        <h2 className="text-2xl font-bold text-gray-900">SLA & Escalation Rules</h2>
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-48 w-full" />
       </div>
@@ -156,10 +156,7 @@ export function SettingsSlaRules() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-heading font-semibold text-surface-text">Service Level Agreement (SLA) Rules</h2>
-          <p className="text-sm text-surface-muted mt-1">
-            Configure automated countdown deadlines and breach escalation timers for applicant review pipelines.
-          </p>
+          <h2 className="text-2xl font-bold text-gray-900">Service Level Agreement (SLA) Rules</h2>
         </div>
       </div>
 

@@ -29,7 +29,7 @@ export function ReviewerStats() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <h2 className="text-2xl font-heading font-semibold text-surface-text">Reviewer Stats</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Reviewer Stats</h2>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-lg" />)}
         </div>
@@ -56,7 +56,7 @@ export function ReviewerStats() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-heading font-semibold text-surface-text">Reviewer Stats</h2>
+      <h2 className="text-2xl font-bold text-gray-900">Reviewer Stats</h2>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {cards.map((c) => (
