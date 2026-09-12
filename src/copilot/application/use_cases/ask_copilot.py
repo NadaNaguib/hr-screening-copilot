@@ -30,6 +30,64 @@ async def _stream_text(text: str) -> AsyncIterator[str]:
             await asyncio.sleep(STREAM_TOKEN_DELAY_SECONDS)
 
 
+async def _resolve_candidate_scope(
+    container: Container,
+    question: str,
+    candidate_id: UUID | None,
+) -> UUID | None:
+    """Resolve the effective candidate scope for one chat turn.
+
+    An explicit ``candidate_id`` (the candidate currently selected/filtered in the
+    UI) always wins. Otherwise we resolve a candidate named in the question — from
+    the live candidates table, not a static list — so implicitly-scoped candidate
+    questions are isolated too. Returns ``None`` for genuinely pool-wide questions.
+    """
+    if candidate_id is not None:
+        return candidate_id
+    session = container.session
+    if session is None:
+        return None
+
+    from sqlalchemy import text as sa_text
+
+    try:
+        result = await session.execute(sa_text("SELECT id, full_name FROM candidates"))
+        rows = result.mappings().all()
+    except Exception:  # pragma: no cover - never block a chat turn on this lookup
+        return None
+
+    ql = (question or "").lower()
+    if not ql.strip():
+        return None
+
+    for row in rows:
+        name = (row.get("full_name") or "").strip()
+        if not name:
+            continue
+        tokens = [t for t in re.split(r"\s+", name) if len(t) >= 4]
+        for probe in [name, *tokens]:
+            if re.search(rf"\b{re.escape(probe.lower())}\b", ql):
+                resolved = row.get("id")
+                return resolved if isinstance(resolved, UUID) else UUID(str(resolved))
+    return None
+
+
+def _scoped_citations(
+    citations: list[dict[str, Any]], scoped_id: UUID | None
+) -> list[dict[str, Any]]:
+    """Drop any citation that belongs to a candidate outside the active scope.
+
+    Citations with an empty ``candidate_id`` (job description / rubric) carry no
+    applicant data and are always safe to keep.
+    """
+    if scoped_id is None:
+        return citations
+    scope = str(scoped_id)
+    return [
+        c for c in citations if not c.get("candidate_id") or str(c.get("candidate_id")) == scope
+    ]
+
+
 def check_query_safety_and_scope(q: str) -> str | None:
     ql = q.lower().strip()
 
@@ -91,6 +149,7 @@ async def ask_copilot(
     question: str,
     job_id: UUID | None = None,
     correlation_id: str = "",
+    candidate_id: UUID | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
     correlation_id = correlation_id or get_correlation_id()
 
@@ -113,6 +172,12 @@ async def ask_copilot(
         yield {"type": "done", "data": "AI disabled"}
         return
 
+    # ─── Candidate-scoped isolation ───────────────────────────────────────────
+    # Resolve the effective scope for this turn: an explicitly selected candidate
+    # wins, otherwise a candidate named in the question. Every retrieval path
+    # below is then hard-filtered to that one candidate.
+    scoped_candidate_id = await _resolve_candidate_scope(container, question, candidate_id)
+
     # ─── Build Agentic RAG tool functions ──────────────────────────────────────
 
     async def _search_fn(
@@ -121,14 +186,14 @@ async def ask_copilot(
         top_k: int = 10,
         candidate_name: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Candidate-name-aware hybrid search tool."""
+        """Candidate-name-aware hybrid search tool (hard-scoped when a scope exists)."""
         embedding = (await container.embedding.embed([query]))[0]
         from sqlalchemy import text as sa_text
 
         vector_str = f"[{','.join(str(v) for v in embedding)}]"
 
         # Build SQL with optional candidate name filter via document/candidate join
-        if candidate_name:
+        if candidate_name and scoped_candidate_id is None:
             # Filter chunks to only the candidate with matching full_name
             sql = """
                 SELECT c.id, c.document_id, c.job_id, c.text, c.page_number, c.metadata,
@@ -165,6 +230,11 @@ async def ask_copilot(
                 LEFT JOIN documents d ON c.document_id = d.id
                 LEFT JOIN candidates cand ON (d.metadata->>'candidate_id')::uuid = cand.id
                 WHERE (CAST(:job_id AS uuid) IS NULL OR c.job_id = CAST(:job_id AS uuid))
+                  AND (
+                        CAST(:candidate_id AS text) IS NULL
+                        OR c.metadata->>'candidate_id' = CAST(:candidate_id AS text)
+                        OR d.metadata->>'candidate_id' = CAST(:candidate_id AS text)
+                      )
                 ORDER BY c.embedding <=> CAST(:embedding AS vector)
                 LIMIT :limit
             """
@@ -173,6 +243,7 @@ async def ask_copilot(
                 {
                     "embedding": vector_str,
                     "job_id": str(job_id) if job_id else None,
+                    "candidate_id": str(scoped_candidate_id) if scoped_candidate_id else None,
                     "limit": top_k,
                 },
             )
@@ -358,6 +429,7 @@ async def ask_copilot(
             correlation_id=correlation_id,
             session=container.session,
             embedding=container.embedding,
+            candidate_id=scoped_candidate_id,
             search_fn=_search_fn,
             candidate_fn=_candidate_fn,
             job_fn=_job_fn,
@@ -368,6 +440,9 @@ async def ask_copilot(
             elif event["type"] == "chunk":
                 text_chunk = event.get("data", "")
                 citations = event.get("citations", [])
+                if citations:
+                    # Hard guarantee: never surface another candidate's citations.
+                    citations = _scoped_citations(citations, scoped_candidate_id)
                 if text_chunk and str(text_chunk).strip():
                     chunk_received = True
                     yield {
@@ -380,20 +455,26 @@ async def ask_copilot(
                 if not chunk_received:
                     # Fallback: plain RAG if agentic produced nothing
                     evidence = await container.hybrid_search.search(
-                        question, job_id=job_id, top_k=5
+                        question,
+                        job_id=job_id,
+                        top_k=5,
+                        candidate_id=scoped_candidate_id,
                     )
-                    fallback_citations = [
-                        {
-                            "id": str(e.id),
-                            "quote": e.quote,
-                            "source": e.source_document or "Resume.pdf",
-                            "page": e.page_number if e.page_number and e.page_number > 0 else 1,
-                            "candidate_id": str(e.metadata.get("candidate_id") or ""),
-                            "chunk_id": str(e.source_chunk_id or e.id),
-                            "full_context": e.metadata.get("full_text") or e.quote,
-                        }
-                        for e in evidence
-                    ]
+                    fallback_citations = _scoped_citations(
+                        [
+                            {
+                                "id": str(e.id),
+                                "quote": e.quote,
+                                "source": e.source_document or "Resume.pdf",
+                                "page": e.page_number if e.page_number and e.page_number > 0 else 1,
+                                "candidate_id": str(e.metadata.get("candidate_id") or ""),
+                                "chunk_id": str(e.source_chunk_id or e.id),
+                                "full_context": e.metadata.get("full_text") or e.quote,
+                            }
+                            for e in evidence
+                        ],
+                        scoped_candidate_id,
+                    )
                     yield {
                         "type": "answer_chunk",
                         "data": f"Based on screening records: {question}",
@@ -402,6 +483,7 @@ async def ask_copilot(
                 citations_final = (
                     done_data.get("citations", []) if isinstance(done_data, dict) else []
                 )
+                citations_final = _scoped_citations(citations_final, scoped_candidate_id)
                 yield {"type": "done", "data": done_data, "citations": citations_final}
     else:
         # ─── Plain RAG (degraded) path ────────────────────────────────────────
@@ -416,31 +498,46 @@ async def ask_copilot(
             },
         }
 
-        evidence = await container.hybrid_search.search(question, job_id=job_id, top_k=5)
+        evidence = await container.hybrid_search.search(
+            question,
+            job_id=job_id,
+            top_k=5,
+            candidate_id=scoped_candidate_id,
+        )
         context = "\n\n".join(
             f'[{i + 1}] Document: {e.source_document} | Page: {e.page_number or 1}\nQuote: "{e.quote}"'
             for i, e in enumerate(evidence)
         )
+        scope_note = ""
+        if scoped_candidate_id is not None:
+            scope_note = (
+                "\nSCOPE: The retrieved context is restricted to a single candidate. "
+                "Answer only about that candidate and do not mention any other applicant.\n"
+            )
         prompt = (
             "You are an expert HR screening copilot. Use ONLY the retrieved CV context below to answer the question.\n"
             "MANDATORY INSTRUCTION: You MUST cite the exact source document and page number where you found each piece of info, "
-            "using inline markers like [1], [2] and referencing the document name (e.g., 'According to Alice_Johnson_CV.pdf (Page 1) [1]').\n\n"
+            "using inline markers like [1], [2] and referencing the document name (e.g., 'According to Alice_Johnson_CV.pdf (Page 1) [1]').\n"
+            f"{scope_note}\n"
             f"Retrieved Evidence:\n{context}\n\n"
             f"Question: {question}\n\n"
             "Answer thoroughly and cite exact CV sources."
         )
-        citations = [
-            {
-                "id": str(e.id),
-                "quote": e.quote,
-                "source": e.source_document or "Resume.pdf",
-                "page": e.page_number if e.page_number and e.page_number > 0 else 1,
-                "candidate_id": str(e.metadata.get("candidate_id") or ""),
-                "chunk_id": str(e.source_chunk_id or e.id),
-                "full_context": e.metadata.get("full_text") or e.quote,
-            }
-            for e in evidence
-        ]
+        citations = _scoped_citations(
+            [
+                {
+                    "id": str(e.id),
+                    "quote": e.quote,
+                    "source": e.source_document or "Resume.pdf",
+                    "page": e.page_number if e.page_number and e.page_number > 0 else 1,
+                    "candidate_id": str(e.metadata.get("candidate_id") or ""),
+                    "chunk_id": str(e.source_chunk_id or e.id),
+                    "full_context": e.metadata.get("full_text") or e.quote,
+                }
+                for e in evidence
+            ],
+            scoped_candidate_id,
+        )
         response = await container.llm.generate(prompt, correlation_id=correlation_id)
         ans = (
             response.text

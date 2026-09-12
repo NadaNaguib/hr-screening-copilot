@@ -585,8 +585,11 @@ class SqlAlchemyVectorStore(VectorStorePort):
         query_text: str,
         job_id: UUID | None = None,
         top_k: int = 10,
+        candidate_id: UUID | None = None,
     ) -> list[Evidence]:
-        # Vector similarity search using pgvector joined with documents table
+        # Vector similarity search using pgvector joined with documents table.
+        # ``candidate_id`` is applied as a HARD SQL predicate so chunks belonging to
+        # any other applicant can never be retrieved (candidate-scoped isolation).
         vector_str = f"[{','.join(str(v) for v in query_embedding)}]"
         sql = """
             SELECT c.id, c.document_id, c.job_id, c.text, c.page_number, c.metadata,
@@ -595,6 +598,11 @@ class SqlAlchemyVectorStore(VectorStorePort):
             FROM chunks c
             LEFT JOIN documents d ON c.document_id = d.id
             WHERE (CAST(:job_id AS uuid) IS NULL OR c.job_id = CAST(:job_id AS uuid))
+              AND (
+                    CAST(:candidate_id AS text) IS NULL
+                    OR c.metadata->>'candidate_id' = CAST(:candidate_id AS text)
+                    OR d.metadata->>'candidate_id' = CAST(:candidate_id AS text)
+                  )
             ORDER BY c.embedding <=> CAST(:embedding AS vector)
             LIMIT :limit
         """
@@ -603,6 +611,7 @@ class SqlAlchemyVectorStore(VectorStorePort):
             {
                 "embedding": vector_str,
                 "job_id": str(job_id) if job_id else None,
+                "candidate_id": str(candidate_id) if candidate_id else None,
                 "limit": top_k,
             },
         )

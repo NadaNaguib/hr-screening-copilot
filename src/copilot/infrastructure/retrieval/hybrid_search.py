@@ -21,6 +21,7 @@ class HybridSearch:
         query: str,
         job_id: UUID | None = None,
         top_k: int = 10,
+        candidate_id: UUID | None = None,
     ) -> list[Evidence]:
         embedding = (await self.embedding.embed([query]))[0]
         return await self.vector_store.search(
@@ -28,4 +29,5 @@ class HybridSearch:
             query_text=query,
             job_id=job_id,
             top_k=top_k,
+            candidate_id=candidate_id,
         )

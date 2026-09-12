@@ -62,9 +62,17 @@ class _Evidence:
 class _FakeHybridSearch:
     def __init__(self) -> None:
         self.calls = 0
+        self.last_candidate_id: Any = "unset"
 
-    async def search(self, query: str, job_id: Any = None, top_k: int = 5) -> list[_Evidence]:
+    async def search(
+        self,
+        query: str,
+        job_id: Any = None,
+        top_k: int = 5,
+        candidate_id: Any = None,
+    ) -> list[_Evidence]:
         self.calls += 1
+        self.last_candidate_id = candidate_id
         return [_Evidence()]
 
 

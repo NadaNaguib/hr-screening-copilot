@@ -28,5 +28,10 @@ class VectorStorePort(ABC):
         query_text: str,
         job_id: UUID | None = None,
         top_k: int = 10,
+        candidate_id: UUID | None = None,
     ) -> list[Evidence]:
-        """Hybrid search returning evidence-like results."""
+        """Hybrid search returning evidence-like results.
+
+        When ``candidate_id`` is supplied the query is hard-scoped to that
+        candidate's chunks, so no other applicant's data can be retrieved.
+        """
