@@ -20,6 +20,9 @@ router = APIRouter()
 class ChatRequest(BaseModel):
     question: str
     job_id: UUID | None = None
+    # When the UI has a candidate selected/filtered, retrieval is hard-scoped to
+    # that candidate so no other applicant's data can enter the context.
+    candidate_id: UUID | None = None
 
 
 @router.post("/chat")
@@ -33,6 +36,7 @@ async def chat(
         container=container,
         question=request.question,
         job_id=request.job_id,
+        candidate_id=request.candidate_id,
         correlation_id=correlation_id,
     )
     return StreamingResponse(

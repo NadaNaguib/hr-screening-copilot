@@ -98,6 +98,11 @@ class AgenticRAGState(TypedDict, total=False):
     embedding_port: EmbeddingPort
     iteration_count: int
 
+    # Candidate-scoped isolation: when set, ALL retrieval is restricted to this
+    # single candidate and any evidence from other candidates is discarded.
+    scoped_candidate_id: str | None
+    scoped_candidate_name: str
+
     # Routing & Disambiguation
     plan: dict[str, Any]
     target_candidates: list[dict[str, Any]]
@@ -184,6 +189,64 @@ def _build_agentic_rag_graph(llm: LLMPort):
         candidate_not_found = False
         not_found_name = ""
         avail_list: list[str] = []
+        scoped_candidate_name = ""
+
+        # ── Candidate-scoped isolation ────────────────────────────────────────
+        # When the caller supplies an explicit candidate scope (candidate selected
+        # in the UI), never run entity detection or pool-wide search: resolve that
+        # one candidate and restrict the whole plan to it.
+        scoped_id = state.get("scoped_candidate_id")
+        if scoped_id:
+            scoped_card: dict[str, Any] = {}
+            if session:
+                scoped_card = await rag_tools.lookup_candidate(session, str(scoped_id))
+            if scoped_card.get("found"):
+                target_candidates = [scoped_card]
+                scoped_candidate_name = scoped_card.get("full_name", "")
+            elif session:
+                candidate_not_found = True
+                not_found_name = str(scoped_id)
+                avail_list = scoped_card.get("available_candidates", [])
+            detected_names = [scoped_candidate_name] if scoped_candidate_name else []
+
+            tools = (
+                ["unknown_candidate_handler"]
+                if candidate_not_found
+                else [
+                    "candidate_profile_lookup",
+                    "candidate_cv_reader",
+                    "candidate_cv_search",
+                    "candidate_evaluation_reader",
+                ]
+            )
+            plan = {
+                "intent": "candidate_inquiry",
+                "tools": tools,
+                "detected_names": detected_names,
+                "resolved_count": len(target_candidates),
+                "scoped": True,
+            }
+            events.append(
+                {
+                    "agent": "agentic_planner",
+                    "scope": "router",
+                    "status": "done",
+                    "action": (
+                        f"Scoped strictly to {scoped_candidate_name or scoped_id}"
+                        f" — {len(tools)} candidate-only tools"
+                    ),
+                    "plan": plan,
+                }
+            )
+            return {
+                "plan": plan,
+                "target_candidates": target_candidates,
+                "candidate_not_found": candidate_not_found,
+                "candidate_not_found_name": not_found_name,
+                "available_candidates": avail_list,
+                "scoped_candidate_name": scoped_candidate_name,
+                "events": events,
+            }
 
         # Resolve candidates against DB if names were detected
         if detected_names and session:
@@ -363,8 +426,12 @@ def _build_agentic_rag_graph(llm: LLMPort):
                     }
                 )
 
-        # 2. Candidate Comparison Execution
-        if "candidate_comparator" in tools and len(targets) >= 2:
+        # 2. Candidate Comparison Execution (never runs under an explicit scope)
+        if (
+            "candidate_comparator" in tools
+            and len(targets) >= 2
+            and not state.get("scoped_candidate_id")
+        ):
             cand_ids = [UUID(c["candidate_id"]) for c in targets]
             comp_res = await rag_tools.compare_candidates(session, cand_ids)
             collected_evidence.extend(comp_res.get("citations", []))
@@ -413,8 +480,16 @@ def _build_agentic_rag_graph(llm: LLMPort):
         # 4. Talent Pool Search Execution
         if "talent_pool_search" in tools:
             if embedding:
+                # Under an explicit candidate scope the pool query is still hard
+                # filtered, so it can never surface another applicant's chunks.
+                scoped_id = state.get("scoped_candidate_id")
                 pool_chunks = await rag_tools.search_talent_pool(
-                    session, embedding, query=question, job_id=job_id, top_k=8
+                    session,
+                    embedding,
+                    query=question,
+                    job_id=job_id,
+                    top_k=8,
+                    candidate_id=UUID(str(scoped_id)) if scoped_id else None,
                 )
                 collected_evidence.extend(pool_chunks)
 
@@ -491,6 +566,18 @@ def _build_agentic_rag_graph(llm: LLMPort):
 
         all_evidence: list[dict[str, Any]] = state.get("collected_evidence") or []
 
+        # ── Candidate-scoped isolation (hard guarantee) ───────────────────────
+        # Even if a tool ever returned another applicant's chunk, it is discarded
+        # here. Non-candidate scopes (job description, rubric) carry an empty
+        # candidate_id and contain no applicant data, so they are kept.
+        scoped_id = state.get("scoped_candidate_id")
+        if scoped_id:
+            all_evidence = [
+                ev
+                for ev in all_evidence
+                if not ev.get("candidate_id") or str(ev.get("candidate_id")) == str(scoped_id)
+            ]
+
         # Deduplicate citations by quote snippet
         seen_quotes = set()
         clean_evidence = []
@@ -536,14 +623,23 @@ def _build_agentic_rag_graph(llm: LLMPort):
 
         # Prompt with strict anti-hallucination & citation instructions
         target_names = [c["full_name"] for c in (state.get("target_candidates") or [])]
-        name_constraint = (
-            (
-                f"\nSTRICT RULE: The user is specifically asking about: {', '.join(target_names)}. "
-                f"You MUST discuss ONLY {', '.join(target_names)}. Do NOT confuse with or mention other candidates unless comparing."
+        scoped_name = state.get("scoped_candidate_name") or ""
+        if scoped_id and (scoped_name or target_names):
+            display = scoped_name or ", ".join(target_names)
+            name_constraint = (
+                f"\nSTRICT SCOPE: Retrieval is restricted to the candidate {display}. "
+                f"Answer only about {display} using the evidence below, and never mention "
+                f"or compare other candidates."
             )
-            if target_names
-            else ""
-        )
+        else:
+            name_constraint = (
+                (
+                    f"\nSTRICT RULE: The user is specifically asking about: {', '.join(target_names)}. "
+                    f"You MUST discuss ONLY {', '.join(target_names)}. Do NOT confuse with or mention other candidates unless comparing."
+                )
+                if target_names
+                else ""
+            )
 
         synthesis_prompt = (
             "You are an expert HR Screening Copilot. Answer the user's question using ONLY the retrieved evidence below.\n"
@@ -831,6 +927,7 @@ class LangGraphOrchestrator(OrchestratorPort):
         correlation_id: str = "",
         session: AsyncSession | None = None,
         embedding: EmbeddingPort | None = None,
+        candidate_id: UUID | None = None,
         **kwargs: Any,
     ) -> AsyncIterator[dict[str, Any]]:
         """Agentic RAG: router -> multi-scope execution -> grounded synthesis.
@@ -839,6 +936,9 @@ class LangGraphOrchestrator(OrchestratorPort):
         final grounded answer token-by-token (FR-6). Any guard trip (per-step
         timeout, iteration breaker) or graph error degrades gracefully to a direct
         Plain-RAG answer flagged with ``degraded: true`` and ``mode: "plain_rag"``.
+
+        When ``candidate_id`` is supplied, retrieval is hard-scoped to that single
+        candidate so no other applicant's data can reach the answer.
         """
 
         async def _ask_generator():
@@ -849,6 +949,8 @@ class LangGraphOrchestrator(OrchestratorPort):
                 "session": session,  # type: ignore[typeddict-item]
                 "embedding_port": embedding,  # type: ignore[typeddict-item]
                 "iteration_count": 0,
+                "scoped_candidate_id": str(candidate_id) if candidate_id else None,
+                "scoped_candidate_name": "",
                 "events": [],
                 "plan": {},
                 "target_candidates": [],

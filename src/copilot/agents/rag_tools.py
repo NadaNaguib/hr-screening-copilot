@@ -457,8 +457,14 @@ async def search_talent_pool(
     job_id: UUID | None = None,
     skill: str | None = None,
     top_k: int = 8,
+    candidate_id: UUID | None = None,
 ) -> list[dict[str, Any]]:
-    """Cross-candidate ranked semantic and keyword search across all resumes."""
+    """Cross-candidate ranked semantic and keyword search across all resumes.
+
+    When ``candidate_id`` is provided the search is *hard-scoped* to that single
+    candidate at the SQL level, so no other applicant's chunks can be returned
+    (candidate-scoped isolation for the chat RAG pipeline).
+    """
     emb = (await embedding_port.embed([query]))[0]
     vector_str = f"[{','.join(str(v) for v in emb)}]"
 
@@ -471,12 +477,22 @@ async def search_talent_pool(
         JOIN documents d ON c.document_id = d.id
         LEFT JOIN candidates cand ON CAST(d.metadata->>'candidate_id' AS uuid) = cand.id
         WHERE (CAST(:job_id AS uuid) IS NULL OR c.job_id = CAST(:job_id AS uuid))
+          AND (
+                CAST(:candidate_id AS text) IS NULL
+                OR c.metadata->>'candidate_id' = CAST(:candidate_id AS text)
+                OR d.metadata->>'candidate_id' = CAST(:candidate_id AS text)
+              )
         ORDER BY c.embedding <=> CAST(:embedding AS vector)
         LIMIT :limit
     """
     res = await session.execute(
         text(sql),
-        {"embedding": vector_str, "job_id": str(job_id) if job_id else None, "limit": top_k},
+        {
+            "embedding": vector_str,
+            "job_id": str(job_id) if job_id else None,
+            "candidate_id": str(candidate_id) if candidate_id else None,
+            "limit": top_k,
+        },
     )
 
     results = []
