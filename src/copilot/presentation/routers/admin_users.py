@@ -5,7 +5,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from copilot.infrastructure.auth.service import hash_password
@@ -17,7 +17,7 @@ router = APIRouter()
 
 class CreateUserRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(min_length=6)
     full_name: str
     role: str
 

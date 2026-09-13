@@ -19,7 +19,7 @@ export function Sidebar() {
   return (
     <aside className="w-64 bg-white border-r border-surface-border flex flex-col">
       <div className="p-6 border-b border-surface-border">
-        <img src={logo} alt="Vera — AI-Powered Talent Screening" className="h-8 w-auto" />
+        <img src={logo} alt="Vera — AI-Powered Talent Screening" className="h-12 w-auto" />
       </div>
       <nav className="flex-1 p-4 space-y-1">
         {links

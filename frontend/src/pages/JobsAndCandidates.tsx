@@ -82,6 +82,7 @@ export function JobsAndCandidates() {
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [mimicking, setMimicking] = useState(false)
   const [deletingJob, setDeletingJob] = useState(false)
   const [deletingCandidateId, setDeletingCandidateId] = useState<string | null>(null)
@@ -232,7 +233,7 @@ export function JobsAndCandidates() {
       toast.error(fileError)
       return
     }
-    setSubmitting(true)
+    setUploading(true)
     const form = new FormData()
     // The backend reads the file from the multipart field named "file" and the
     // job id from either the form field or the query string.
@@ -247,7 +248,7 @@ export function JobsAndCandidates() {
     } catch (err: any) {
       toast.error(err.message || "Failed to upload candidate")
     } finally {
-      setSubmitting(false)
+      setUploading(false)
     }
   }
 
@@ -491,10 +492,10 @@ export function JobsAndCandidates() {
 
             <button
               type="submit"
-              disabled={submitting || !file || !selectedJob}
+              disabled={uploading || !file || !selectedJob}
               className="w-full py-2 bg-brand-primary text-white rounded-lg text-sm font-medium hover:bg-brand-primary/90 transition disabled:opacity-50"
             >
-              {submitting ? "Parsing & Uploading…" : "Upload & Parse Resume"}
+              {uploading ? "Parsing & Uploading…" : "Upload & Parse Resume"}
             </button>
           </form>
         </div>

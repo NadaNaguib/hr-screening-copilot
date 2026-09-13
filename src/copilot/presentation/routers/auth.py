@@ -5,7 +5,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,7 +23,7 @@ class LoginRequest(BaseModel):
 
 class UserCreateRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(min_length=6)
     full_name: str
     role: str
 

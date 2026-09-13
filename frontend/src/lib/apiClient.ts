@@ -32,7 +32,13 @@ apiClient.interceptors.response.use(
     const detail = data?.detail
     const message = typeof detail === "string" ? detail : detail?.message || data?.message || error.message
 
-    if (status === 401) {
+    // A failed login also returns 401. Forcing a full-page redirect here would
+    // wipe the inline "Invalid email or password" banner before the user can
+    // read it, so only treat 401 as session expiry for non-login requests.
+    const requestUrl = error.config?.url || ""
+    const isLoginRequest = requestUrl.includes("/auth/login")
+
+    if (status === 401 && !isLoginRequest) {
       localStorage.removeItem("token")
       localStorage.removeItem("role")
       window.location.href = "/login"
