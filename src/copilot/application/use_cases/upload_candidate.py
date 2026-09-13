@@ -21,7 +21,9 @@ def _extract_years(text: str) -> float:
 
     Combines explicit statements (e.g. "8 years of experience") with the union
     of non-overlapping work-history date ranges (e.g. "2019 - Present") so that
-    overlapping roles are never double-counted.
+    overlapping roles are never double-counted. When neither is present (common
+    in concise CVs that list roles without dates), the career-start year is used
+    so a clearly experienced candidate is not scored as a fresher.
     """
     if not text:
         return 0.0
@@ -29,6 +31,10 @@ def _extract_years(text: str) -> float:
     experience_text = _experience_section(text) or text
     ranged = _years_from_ranges(experience_text)
     years = max(explicit, ranged)
+    if years <= 0.0:
+        start_year = _career_start_year(text)
+        if start_year is not None:
+            years = max(0.0, float(datetime.utcnow().year - start_year))
     return round(min(years, 50.0), 1)
 
 
@@ -82,6 +88,12 @@ _STRICT_YEARS_RE = re.compile(
     r"(\d{1,2}(?:\.\d+)?)\s*\+?\s*(?:years?|yrs?)[^.\n]{0,60}?experience", re.IGNORECASE
 )
 _LOOSE_YEARS_RE = re.compile(r"(\d{1,2}(?:\.\d+)?)\s*\+?\s*(?:years?|yrs?)\b", re.IGNORECASE)
+_YEAR_TOKEN_RE = re.compile(r"\b(?:19|20)\d{2}\b")
+_GRADUATION_YEAR_RE = re.compile(
+    r"(?:bachelor|b\.?sc|b\.?a|master|m\.?sc|m\.?a|ph\.?d|diploma|degree|graduat\w*)"
+    r"[^\n]{0,60}?((?:19|20)\d{2})",
+    re.IGNORECASE,
+)
 
 
 def _extract_explicit_years(text: str) -> float:
@@ -93,6 +105,34 @@ def _extract_explicit_years(text: str) -> float:
     if loose:
         return max(float(value) for value in loose)
     return 0.0
+
+
+def _career_start_year(text: str) -> int | None:
+    """Best-effort estimate of the year a candidate's career began.
+
+    Many real CVs — especially concise backend/frontend resumes — list roles as
+    bullet points with no date range and never state "N years of experience".
+    For those, a graduation year (the most date-anchored signal in an
+    experience-less CV) is used as the career start; otherwise the earliest
+    plausible year found inside the work-experience section. Returns ``None``
+    when no usable signal exists.
+    """
+    now_year = datetime.utcnow().year
+    graduation_years = [
+        int(year) for year in _GRADUATION_YEAR_RE.findall(text) if 1960 <= int(year) <= now_year
+    ]
+    if graduation_years:
+        # Latest degree completion = conservative (never over-estimates).
+        return max(graduation_years)
+
+    experience_text = _experience_section(text)
+    if experience_text:
+        years = [int(m.group()) for m in _YEAR_TOKEN_RE.finditer(experience_text)]
+        plausible = [year for year in years if 1960 <= year <= now_year]
+        if plausible:
+            return min(plausible)
+    return None
+
 
 
 def _experience_section(text: str) -> str:

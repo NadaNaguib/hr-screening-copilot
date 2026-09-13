@@ -100,6 +100,29 @@ def test_extract_years_from_overlapping_date_ranges_deduplicates() -> None:
     assert years < 20.0
 
 
+def test_extract_years_from_undated_cv_uses_career_start() -> None:
+    # Regression: concise CVs that list roles without dates and never state
+    # "N years of experience" previously parsed as 0.0 years.
+    cv = (
+        "Ahmed Mahmoud\n"
+        "Java Backend Developer | Egypt\n"
+        "Summary\n"
+        "Backend Software Engineer specializing in building scalable web APIs.\n"
+        "Experience\n"
+        " Java Developer\n"
+        " o Developed and maintained RESTful APIs.\n"
+        "Education\n"
+        " Bachelor of Computer Science (2023)\n"
+    )
+    years = _extract_years(cv)
+    assert years > 0.0
+    assert years >= 1.0
+
+
+def test_extract_years_returns_zero_without_any_career_signal() -> None:
+    assert _extract_years("Just a name with no history at all.") == 0.0
+
+
 # ---------------------------------------------------------------------------
 # Issue 2 — default rubric provisioning
 # ---------------------------------------------------------------------------
