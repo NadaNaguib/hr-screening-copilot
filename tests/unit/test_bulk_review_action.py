@@ -90,6 +90,24 @@ async def test_bulk_reject_requires_comment() -> None:
     assert repo.updated == []
 
 
+async def test_recruiter_bulk_reject_at_triage_without_comment() -> None:
+    """Bulk triage rejections do not require a comment for recruiters."""
+    t1, t2 = _triage_task(), _triage_task()
+    repo = _FakeReviewTaskRepo({t1.id: t1, t2.id: t2})
+    result = await bulk_review_action(
+        container=_FakeContainer(repo),
+        actor_id=uuid4(),
+        role="hr_recruiter",
+        task_ids=[t1.id, t2.id],
+        action="reject_at_triage",
+        reason=None,
+    )
+    assert result["processed"] == 2
+    assert result["failed"] == []
+    assert t1.status == ReviewStatus.REJECTED_AT_TRIAGE
+    assert t2.status == ReviewStatus.REJECTED_AT_TRIAGE
+
+
 async def test_recruiter_bulk_forward_applies_to_all_selected() -> None:
     t1, t2 = _triage_task(), _triage_task()
     repo = _FakeReviewTaskRepo({t1.id: t1, t2.id: t2})

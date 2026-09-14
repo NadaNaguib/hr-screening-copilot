@@ -13,9 +13,11 @@ import {
   Clock,
   AlertCircle,
   FileText,
+  Info,
   UserCheck,
 } from "lucide-react"
 import { CvViewerModal } from "../components/CvViewerModal"
+import { JobDetailsModal } from "../components/JobDetailsModal"
 
 // Formats advertised as supported in the UI. The extension is authoritative
 // (browsers sometimes report generic/empty MIME types for Office documents).
@@ -84,7 +86,7 @@ export function JobsAndCandidates() {
   const [submitting, setSubmitting] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [mimicking, setMimicking] = useState(false)
-  const [deletingJob, setDeletingJob] = useState(false)
+  const [jobModalOpen, setJobModalOpen] = useState(false)
   const [deletingCandidateId, setDeletingCandidateId] = useState<string | null>(null)
   const [runningPipelineId, setRunningPipelineId] = useState<string | null>(null)
   const [generatingProbesId, setGeneratingProbesId] = useState<string | null>(null)
@@ -169,24 +171,16 @@ export function JobsAndCandidates() {
     }
   }
 
-  async function deleteJob() {
-    if (!selectedJob) return
-    const curJob = jobs.find((j) => j.id === selectedJob)
-    if (!confirm(`Are you sure you want to delete "${curJob?.title || 'this job'}"? Any unlinked candidates will remain in the pool.`)) {
-      return
-    }
-    setDeletingJob(true)
-    try {
-      await apiClient.delete(`/jobs/${selectedJob}`)
-      toast.success("Job deleted successfully")
-      const updatedJobs = jobs.filter((j) => j.id !== selectedJob)
-      setJobs(updatedJobs)
-      setSelectedJob(updatedJobs.length > 0 ? updatedJobs[0].id : "")
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete job")
-    } finally {
-      setDeletingJob(false)
-    }
+  function handleJobSaved(updated: Job) {
+    // Refresh the cached job so the dropdown + summary card reflect the edits.
+    setJobs((prev) => prev.map((j) => (j.id === updated.id ? { ...j, ...updated } : j)))
+  }
+
+  function handleJobDeleted(jobId: string) {
+    const updatedJobs = jobs.filter((j) => j.id !== jobId)
+    setJobs(updatedJobs)
+    setSelectedJob(updatedJobs.length > 0 ? updatedJobs[0].id : "")
+    setJobModalOpen(false)
   }
 
   async function mimicCandidate() {
@@ -333,17 +327,14 @@ export function JobsAndCandidates() {
               {mimicking ? "Synthesizing CV…" : "Mimic CV & Match"}
             </button>
 
-            {(isAdmin() || isRecruiter()) && (
-              <button
-                onClick={deleteJob}
-                disabled={deletingJob}
-                title="Delete this job vacancy"
-                className="px-3 py-2 text-sm bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-medium rounded-lg transition disabled:opacity-50 flex items-center gap-1.5"
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete Job
-              </button>
-            )}
+            <button
+              onClick={() => setJobModalOpen(true)}
+              title="View full details and edit this job vacancy"
+              className="px-3.5 py-2 text-sm bg-indigo-50 hover:bg-indigo-100 text-brand-primary border border-brand-primary/30 font-medium rounded-lg transition flex items-center gap-1.5"
+            >
+              <Info className="w-4 h-4" />
+              Job Details
+            </button>
           </div>
         )}
       </div>
@@ -675,6 +666,17 @@ export function JobsAndCandidates() {
           )}
         </div>
       </div>
+
+      {/* Job Details Modal — view, edit and delete the selected vacancy */}
+      <JobDetailsModal
+        job={activeJob || null}
+        isOpen={jobModalOpen}
+        canManage={isAdmin() || isRecruiter()}
+        priorityOptions={slaPriorities}
+        onClose={() => setJobModalOpen(false)}
+        onSaved={handleJobSaved}
+        onDeleted={handleJobDeleted}
+      />
 
       {/* Original CV Viewer Modal */}
       <CvViewerModal

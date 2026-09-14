@@ -32,6 +32,14 @@ def test_recruiter_can_reject_at_triage() -> None:
     assert task.status == ReviewStatus.REJECTED_AT_TRIAGE
 
 
+def test_recruiter_can_reject_at_triage_without_comment() -> None:
+    """Recruiters may decline a candidate at triage without justifying it."""
+    task = _task(ReviewStatus.PENDING_TRIAGE)
+    task.apply_action("hr_recruiter", ReviewAction.REJECT_AT_TRIAGE)
+    assert task.status == ReviewStatus.REJECTED_AT_TRIAGE
+    assert task.triage_reason is None
+
+
 def test_hiring_manager_cannot_act_on_pending_triage() -> None:
     task = _task(ReviewStatus.PENDING_TRIAGE)
     with pytest.raises(AuthorizationError):

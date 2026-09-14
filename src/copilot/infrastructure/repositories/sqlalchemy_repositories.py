@@ -288,6 +288,21 @@ class SqlAlchemyDocumentRepository(DocumentRepositoryPort):
         result = await self._session.execute(select(JobORM))
         return [_job_to_domain(orm) for orm in result.scalars().all()]
 
+    async def update_job(self, job: Job) -> Job | None:
+        orm = await self._session.get(JobORM, job.id)
+        if not orm:
+            return None
+        orm.title = job.title
+        orm.department = job.department
+        orm.description = job.description
+        orm.location = job.location
+        orm.priority = normalize_priority(job.priority)
+        orm.skills = job.skills
+        orm.updated_at = datetime.utcnow()
+        await self._session.flush()
+        await self._session.refresh(orm)
+        return _job_to_domain(orm)
+
     async def create_rubric(self, rubric: Rubric) -> Rubric:
         orm = _rubric_from_domain(rubric)
         self._session.add(orm)

@@ -26,6 +26,10 @@ class DocumentRepositoryPort(ABC):
         """Return all jobs."""
 
     @abstractmethod
+    async def update_job(self, job: Job) -> Job | None:
+        """Persist changes to an existing job. Returns None when it is missing."""
+
+    @abstractmethod
     async def create_rubric(self, rubric: Rubric) -> Rubric:
         """Persist a rubric."""
 
