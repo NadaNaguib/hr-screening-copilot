@@ -38,7 +38,7 @@ async def upload_candidate_endpoint(
     request: Request,
     job_id: UUID | None = None,
     container: Container = Depends(get_container),
-    user: dict = Depends(require_roles("admin", "hr_recruiter")),
+    user: dict = Depends(require_roles("admin", "hr_recruiter", "hiring_manager")),
 ) -> dict:
     # Parse the multipart form directly. This keeps the handler independent of
     # FastAPI's form/file parameter inference and tolerant to field naming, so
@@ -232,7 +232,7 @@ async def list_candidates(
 async def delete_candidate_endpoint(
     candidate_id: UUID,
     container: Container = Depends(get_container),
-    user: dict = Depends(require_roles("admin", "hr_recruiter")),
+    user: dict = Depends(require_roles("admin", "hr_recruiter", "hiring_manager")),
 ) -> dict:
     from copilot.domain.errors import NotFoundError
 

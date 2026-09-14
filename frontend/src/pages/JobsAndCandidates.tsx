@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import toast from "react-hot-toast"
 import { apiClient } from "../lib/apiClient"
-import { isAdmin, isRecruiter } from "../lib/auth"
+import { isAdmin, isManager, isRecruiter } from "../lib/auth"
 import { Skeleton } from "../components/Skeleton"
 import {
   Briefcase,
@@ -80,6 +80,7 @@ export function JobsAndCandidates() {
   const [newJobDescription, setNewJobDescription] = useState("")
   const [newJobSkills, setNewJobSkills] = useState("")
   const [newJobPriority, setNewJobPriority] = useState("MEDIUM")
+  const [newJobLocation, setNewJobLocation] = useState("")
   const [slaPriorities, setSlaPriorities] = useState<string[]>([])  // active SLA priorities
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(true)
@@ -153,6 +154,7 @@ export function JobsAndCandidates() {
         title: newJobTitle.trim(),
         department: newJobDept.trim(),
         description: newJobDescription.trim(),
+        location: newJobLocation.trim(),
         priority: newJobPriority,
         skills,
       })
@@ -162,6 +164,7 @@ export function JobsAndCandidates() {
       setNewJobDescription("")
       setNewJobSkills("")
       setNewJobPriority("MEDIUM")
+      setNewJobLocation("")
       await fetchJobs()
       setSelectedJob(createdId)
     } catch (err: any) {
@@ -371,7 +374,7 @@ export function JobsAndCandidates() {
       )}
 
       {/* Creation and Upload Row */}
-      {(isAdmin() || isRecruiter()) && (
+      {(isAdmin() || isRecruiter() || isManager()) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Create Job Form */}
           <form onSubmit={createJob} className="bg-white p-5 rounded-xl border border-surface-border shadow-xs space-y-3">
@@ -414,14 +417,23 @@ export function JobsAndCandidates() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-surface-muted mb-1 font-medium">Key Skills (comma-separated)</label>
+                <label className="block text-xs text-surface-muted mb-1 font-medium">Location</label>
                 <input
-                  placeholder="Python, Docker, SQL"
-                  value={newJobSkills}
-                  onChange={(e) => setNewJobSkills(e.target.value)}
+                  placeholder="e.g. Remote, Cairo, London"
+                  value={newJobLocation}
+                  onChange={(e) => setNewJobLocation(e.target.value)}
                   className="w-full px-3 py-1.5 border border-surface-border rounded-lg text-sm"
                 />
               </div>
+            </div>
+            <div>
+              <label className="block text-xs text-surface-muted mb-1 font-medium">Key Skills (comma-separated)</label>
+              <input
+                placeholder="Python, Docker, SQL"
+                value={newJobSkills}
+                onChange={(e) => setNewJobSkills(e.target.value)}
+                className="w-full px-3 py-1.5 border border-surface-border rounded-lg text-sm"
+              />
             </div>
             <div>
               <label className="block text-xs text-surface-muted mb-1 font-medium">Role Description & Requirements</label>
@@ -505,7 +517,7 @@ export function JobsAndCandidates() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
+          <table className="w-full min-w-[720px] text-sm text-left">
             <thead className="bg-surface-page text-surface-muted uppercase text-xs font-semibold">
               <tr>
                 <th className="px-4 py-3">Applicant Name</th>
@@ -640,15 +652,17 @@ export function JobsAndCandidates() {
                                 : "Generate Probes"}
                             </button>
                           )}
-                          <button
-                            onClick={() => deleteCandidate(c.id, c.full_name)}
-                            disabled={isDeleting || isRunning}
-                            title="Remove candidate from pool"
-                            className="inline-flex items-center p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition disabled:opacity-50"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
                         </>
+                      )}
+                      {(isAdmin() || isRecruiter() || isManager()) && (
+                        <button
+                          onClick={() => deleteCandidate(c.id, c.full_name)}
+                          disabled={isDeleting || isRunning}
+                          title="Remove candidate from pool"
+                          className="inline-flex items-center p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition disabled:opacity-50"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       )}
                     </td>
                   </tr>
@@ -671,7 +685,7 @@ export function JobsAndCandidates() {
       <JobDetailsModal
         job={activeJob || null}
         isOpen={jobModalOpen}
-        canManage={isAdmin() || isRecruiter()}
+        canManage={isAdmin() || isRecruiter() || isManager()}
         priorityOptions={slaPriorities}
         onClose={() => setJobModalOpen(false)}
         onSaved={handleJobSaved}

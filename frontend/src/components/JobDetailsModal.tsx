@@ -239,7 +239,7 @@ export function JobDetailsModal({ job, isOpen, canManage, priorityOptions, onClo
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-surface-border flex items-center justify-between gap-2 bg-white shrink-0">
+        <div className="px-6 py-4 border-t border-surface-border flex flex-wrap items-center justify-between gap-2 bg-white shrink-0">
           {canManage && !editing ? (
             <button
               onClick={() => setConfirmDelete(true)}

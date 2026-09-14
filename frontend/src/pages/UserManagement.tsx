@@ -171,7 +171,7 @@ export function UserManagement() {
           <span className="text-xs text-surface-muted">Total: {users.length} user{users.length !== 1 ? "s" : ""}</span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
+          <table className="w-full min-w-[600px] text-sm text-left">
             <thead className="bg-surface-page text-surface-muted uppercase text-xs">
               <tr>
                 <th className="px-5 py-3">Full Name</th>

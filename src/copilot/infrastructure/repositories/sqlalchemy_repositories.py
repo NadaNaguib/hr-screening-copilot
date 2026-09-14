@@ -14,6 +14,7 @@ from copilot.application.ports.document_repository_port import DocumentRepositor
 from copilot.application.ports.review_task_repository_port import ReviewTaskRepositoryPort
 from copilot.application.ports.vector_store_port import VectorStorePort
 from copilot.domain.candidate import Candidate, CandidateStatus
+from copilot.domain.errors import ConflictError
 from copilot.domain.evidence import Evidence
 from copilot.domain.job import Job
 from copilot.domain.review_task import ReviewStatus, ReviewTask
@@ -35,6 +36,16 @@ from copilot.infrastructure.db.models import (
     ShortlistORM,
     SLARuleORM,
 )
+
+# Review-task statuses that lock a candidate from deletion. Once a candidate has
+# been forwarded to a manager (or approved), deleting them would orphan downstream
+# approvals/shortlists, so we refuse with a clear conflict message instead.
+_CANDIDATE_DELETE_BLOCKED_STATUSES: set[ReviewStatus] = {
+    ReviewStatus.PENDING_MANAGER_REVIEW,
+    ReviewStatus.ESCALATED_MANAGER,
+    ReviewStatus.APPROVED,
+    ReviewStatus.EDITED_AND_APPROVED,
+}
 
 
 def _job_to_domain(orm: JobORM) -> Job:
@@ -451,6 +462,22 @@ class SqlAlchemyCandidateRepository(CandidateRepositoryPort):
         cand = await self._session.get(CandidateORM, candidate_id)
         if not cand:
             return False
+        # A candidate that has already progressed past triage (forwarded to a
+        # manager or approved) cannot be silently removed — surface a clear
+        # conflict instead of letting the DB throw a 500 constraint error.
+        statuses = set(
+            (
+                await self._session.execute(
+                    select(ReviewTaskORM.status).where(ReviewTaskORM.candidate_id == candidate_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if statuses & _CANDIDATE_DELETE_BLOCKED_STATUSES:
+            raise ConflictError(
+                "Cannot delete a candidate who has already been approved or forwarded for review."
+            )
         await self._session.execute(
             delete(ReviewTaskORM).where(ReviewTaskORM.candidate_id == candidate_id)
         )

@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from copilot.application.use_cases.ensure_job_rubric import ensure_job_rubric
 from copilot.application.use_cases.ingest_document import ingest_document
-from copilot.domain.errors import NotFoundError
+from copilot.domain.errors import ConflictError, NotFoundError
 from copilot.domain.job import Job
 from copilot.domain.rubric import CriterionWeight, Rubric, RubricCriterion
 from copilot.domain.sla_rule import normalize_priority
@@ -80,7 +80,7 @@ class RubricCreate(BaseModel):
 async def create_job(
     request: JobCreate,
     container: Container = Depends(get_container),
-    user: dict = Depends(require_roles("admin", "hr_recruiter")),
+    user: dict = Depends(require_roles("admin", "hr_recruiter", "hiring_manager")),
 ) -> dict:
     job = Job(
         title=request.title,
@@ -123,7 +123,7 @@ async def update_job_endpoint(
     job_id: UUID,
     request: JobUpdate,
     container: Container = Depends(get_container),
-    user: dict = Depends(require_roles("admin", "hr_recruiter")),
+    user: dict = Depends(require_roles("admin", "hr_recruiter", "hiring_manager")),
 ) -> dict:
     """Partially update a job vacancy (edit from the Job Details modal)."""
     job = await container.document_repository.get_job(job_id)
@@ -217,8 +217,14 @@ async def upload_job_document(
 async def delete_job_endpoint(
     job_id: UUID,
     container: Container = Depends(get_container),
-    user: dict = Depends(require_roles("admin", "hr_recruiter")),
+    user: dict = Depends(require_roles("admin", "hr_recruiter", "hiring_manager")),
 ) -> dict:
+    attached_candidates = await container.candidate_repository.list_candidates(job_id=job_id)
+    if attached_candidates:
+        raise ConflictError(
+            "Cannot delete this job because candidates are currently attached to it. "
+            "Please reassign or remove the candidates first."
+        )
     success = await container.document_repository.delete_job(job_id)
     if not success:
         raise NotFoundError(f"Job {job_id} not found")
