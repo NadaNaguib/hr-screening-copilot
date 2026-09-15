@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import toast from "react-hot-toast"
 import { apiClient } from "../lib/apiClient"
-import { isAdmin, isRecruiter } from "../lib/auth"
+import { isAdmin, isManager, isRecruiter } from "../lib/auth"
 import { Skeleton } from "../components/Skeleton"
 import {
   Briefcase,
@@ -13,9 +13,11 @@ import {
   Clock,
   AlertCircle,
   FileText,
+  Info,
   UserCheck,
 } from "lucide-react"
 import { CvViewerModal } from "../components/CvViewerModal"
+import { JobDetailsModal } from "../components/JobDetailsModal"
 
 // Formats advertised as supported in the UI. The extension is authoritative
 // (browsers sometimes report generic/empty MIME types for Office documents).
@@ -78,12 +80,14 @@ export function JobsAndCandidates() {
   const [newJobDescription, setNewJobDescription] = useState("")
   const [newJobSkills, setNewJobSkills] = useState("")
   const [newJobPriority, setNewJobPriority] = useState("MEDIUM")
+  const [newJobLocation, setNewJobLocation] = useState("")
   const [slaPriorities, setSlaPriorities] = useState<string[]>([])  // active SLA priorities
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [mimicking, setMimicking] = useState(false)
-  const [deletingJob, setDeletingJob] = useState(false)
+  const [jobModalOpen, setJobModalOpen] = useState(false)
   const [deletingCandidateId, setDeletingCandidateId] = useState<string | null>(null)
   const [runningPipelineId, setRunningPipelineId] = useState<string | null>(null)
   const [generatingProbesId, setGeneratingProbesId] = useState<string | null>(null)
@@ -150,6 +154,7 @@ export function JobsAndCandidates() {
         title: newJobTitle.trim(),
         department: newJobDept.trim(),
         description: newJobDescription.trim(),
+        location: newJobLocation.trim(),
         priority: newJobPriority,
         skills,
       })
@@ -159,6 +164,7 @@ export function JobsAndCandidates() {
       setNewJobDescription("")
       setNewJobSkills("")
       setNewJobPriority("MEDIUM")
+      setNewJobLocation("")
       await fetchJobs()
       setSelectedJob(createdId)
     } catch (err: any) {
@@ -168,24 +174,16 @@ export function JobsAndCandidates() {
     }
   }
 
-  async function deleteJob() {
-    if (!selectedJob) return
-    const curJob = jobs.find((j) => j.id === selectedJob)
-    if (!confirm(`Are you sure you want to delete "${curJob?.title || 'this job'}"? Any unlinked candidates will remain in the pool.`)) {
-      return
-    }
-    setDeletingJob(true)
-    try {
-      await apiClient.delete(`/jobs/${selectedJob}`)
-      toast.success("Job deleted successfully")
-      const updatedJobs = jobs.filter((j) => j.id !== selectedJob)
-      setJobs(updatedJobs)
-      setSelectedJob(updatedJobs.length > 0 ? updatedJobs[0].id : "")
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete job")
-    } finally {
-      setDeletingJob(false)
-    }
+  function handleJobSaved(updated: Job) {
+    // Refresh the cached job so the dropdown + summary card reflect the edits.
+    setJobs((prev) => prev.map((j) => (j.id === updated.id ? { ...j, ...updated } : j)))
+  }
+
+  function handleJobDeleted(jobId: string) {
+    const updatedJobs = jobs.filter((j) => j.id !== jobId)
+    setJobs(updatedJobs)
+    setSelectedJob(updatedJobs.length > 0 ? updatedJobs[0].id : "")
+    setJobModalOpen(false)
   }
 
   async function mimicCandidate() {
@@ -232,7 +230,7 @@ export function JobsAndCandidates() {
       toast.error(fileError)
       return
     }
-    setSubmitting(true)
+    setUploading(true)
     const form = new FormData()
     // The backend reads the file from the multipart field named "file" and the
     // job id from either the form field or the query string.
@@ -247,7 +245,7 @@ export function JobsAndCandidates() {
     } catch (err: any) {
       toast.error(err.message || "Failed to upload candidate")
     } finally {
-      setSubmitting(false)
+      setUploading(false)
     }
   }
 
@@ -332,17 +330,14 @@ export function JobsAndCandidates() {
               {mimicking ? "Synthesizing CV…" : "Mimic CV & Match"}
             </button>
 
-            {(isAdmin() || isRecruiter()) && (
-              <button
-                onClick={deleteJob}
-                disabled={deletingJob}
-                title="Delete this job vacancy"
-                className="px-3 py-2 text-sm bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-medium rounded-lg transition disabled:opacity-50 flex items-center gap-1.5"
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete Job
-              </button>
-            )}
+            <button
+              onClick={() => setJobModalOpen(true)}
+              title="View full details and edit this job vacancy"
+              className="px-3.5 py-2 text-sm bg-indigo-50 hover:bg-indigo-100 text-brand-primary border border-brand-primary/30 font-medium rounded-lg transition flex items-center gap-1.5"
+            >
+              <Info className="w-4 h-4" />
+              Job Details
+            </button>
           </div>
         )}
       </div>
@@ -379,7 +374,7 @@ export function JobsAndCandidates() {
       )}
 
       {/* Creation and Upload Row */}
-      {(isAdmin() || isRecruiter()) && (
+      {(isAdmin() || isRecruiter() || isManager()) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Create Job Form */}
           <form onSubmit={createJob} className="bg-white p-5 rounded-xl border border-surface-border shadow-xs space-y-3">
@@ -422,14 +417,23 @@ export function JobsAndCandidates() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-surface-muted mb-1 font-medium">Key Skills (comma-separated)</label>
+                <label className="block text-xs text-surface-muted mb-1 font-medium">Location</label>
                 <input
-                  placeholder="Python, Docker, SQL"
-                  value={newJobSkills}
-                  onChange={(e) => setNewJobSkills(e.target.value)}
+                  placeholder="e.g. Remote, Cairo, London"
+                  value={newJobLocation}
+                  onChange={(e) => setNewJobLocation(e.target.value)}
                   className="w-full px-3 py-1.5 border border-surface-border rounded-lg text-sm"
                 />
               </div>
+            </div>
+            <div>
+              <label className="block text-xs text-surface-muted mb-1 font-medium">Key Skills (comma-separated)</label>
+              <input
+                placeholder="Python, Docker, SQL"
+                value={newJobSkills}
+                onChange={(e) => setNewJobSkills(e.target.value)}
+                className="w-full px-3 py-1.5 border border-surface-border rounded-lg text-sm"
+              />
             </div>
             <div>
               <label className="block text-xs text-surface-muted mb-1 font-medium">Role Description & Requirements</label>
@@ -491,10 +495,10 @@ export function JobsAndCandidates() {
 
             <button
               type="submit"
-              disabled={submitting || !file || !selectedJob}
+              disabled={uploading || !file || !selectedJob}
               className="w-full py-2 bg-brand-primary text-white rounded-lg text-sm font-medium hover:bg-brand-primary/90 transition disabled:opacity-50"
             >
-              {submitting ? "Parsing & Uploading…" : "Upload & Parse Resume"}
+              {uploading ? "Parsing & Uploading…" : "Upload & Parse Resume"}
             </button>
           </form>
         </div>
@@ -513,7 +517,7 @@ export function JobsAndCandidates() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
+          <table className="w-full min-w-[720px] text-sm text-left">
             <thead className="bg-surface-page text-surface-muted uppercase text-xs font-semibold">
               <tr>
                 <th className="px-4 py-3">Applicant Name</th>
@@ -648,15 +652,17 @@ export function JobsAndCandidates() {
                                 : "Generate Probes"}
                             </button>
                           )}
-                          <button
-                            onClick={() => deleteCandidate(c.id, c.full_name)}
-                            disabled={isDeleting || isRunning}
-                            title="Remove candidate from pool"
-                            className="inline-flex items-center p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition disabled:opacity-50"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
                         </>
+                      )}
+                      {(isAdmin() || isRecruiter() || isManager()) && (
+                        <button
+                          onClick={() => deleteCandidate(c.id, c.full_name)}
+                          disabled={isDeleting || isRunning}
+                          title="Remove candidate from pool"
+                          className="inline-flex items-center p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition disabled:opacity-50"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       )}
                     </td>
                   </tr>
@@ -674,6 +680,17 @@ export function JobsAndCandidates() {
           )}
         </div>
       </div>
+
+      {/* Job Details Modal — view, edit and delete the selected vacancy */}
+      <JobDetailsModal
+        job={activeJob || null}
+        isOpen={jobModalOpen}
+        canManage={isAdmin() || isRecruiter() || isManager()}
+        priorityOptions={slaPriorities}
+        onClose={() => setJobModalOpen(false)}
+        onSaved={handleJobSaved}
+        onDeleted={handleJobDeleted}
+      />
 
       {/* Original CV Viewer Modal */}
       <CvViewerModal

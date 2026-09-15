@@ -93,12 +93,12 @@ SLA_OUTCOME_COMPLETED = "completed_in_sla"
 SLA_OUTCOME_BREACHED = "breached"
 
 _REASON_ACTIONS = {
-    ReviewAction.REJECT_AT_TRIAGE,
     ReviewAction.REJECT,
 }
 
-# Only a rejection must be justified. Approving or editing/approving a candidate
-# never requires a comment, so the UI can save seamless edits.
+# A *manager* rejection must be justified; a recruiter rejecting a candidate at
+# triage may do so without a comment, and approving / edit-approving never needs
+# one either.
 REJECTION_COMMENT_REQUIRED = (
     "A comment explaining the decision is required before rejecting a candidate."
 )

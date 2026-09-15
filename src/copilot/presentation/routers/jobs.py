@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -9,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from copilot.application.use_cases.ensure_job_rubric import ensure_job_rubric
 from copilot.application.use_cases.ingest_document import ingest_document
+from copilot.domain.errors import ConflictError, NotFoundError
 from copilot.domain.job import Job
 from copilot.domain.rubric import CriterionWeight, Rubric, RubricCriterion
 from copilot.domain.sla_rule import normalize_priority
@@ -19,6 +21,21 @@ from copilot.presentation.dependencies import get_container, get_current_user, r
 router = APIRouter()
 
 
+def _job_payload(job: Job) -> dict:
+    """Serialize a Job domain object for API responses."""
+    return {
+        "id": str(job.id),
+        "title": job.title,
+        "department": job.department,
+        "description": job.description,
+        "location": job.location,
+        "priority": job.priority,
+        "skills": job.skills,
+        "created_at": job.created_at.isoformat() if job.created_at else None,
+        "updated_at": job.updated_at.isoformat() if job.updated_at else None,
+    }
+
+
 class JobCreate(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     department: str = ""
@@ -26,6 +43,21 @@ class JobCreate(BaseModel):
     location: str = ""
     priority: str = Field(default="MEDIUM", min_length=1, max_length=20)
     skills: list[str] = Field(default_factory=list)
+
+
+class JobUpdate(BaseModel):
+    """Partial update payload for the Job Details modal.
+
+    Every field is optional so the client can send just the values it changed
+    (a ``PATCH``); omitted fields keep their current value.
+    """
+
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    department: str | None = None
+    description: str | None = None
+    location: str | None = None
+    priority: str | None = Field(default=None, min_length=1, max_length=20)
+    skills: list[str] | None = None
 
 
 class RubricCriterionCreate(BaseModel):
@@ -48,7 +80,7 @@ class RubricCreate(BaseModel):
 async def create_job(
     request: JobCreate,
     container: Container = Depends(get_container),
-    user: dict = Depends(require_roles("admin", "hr_recruiter")),
+    user: dict = Depends(require_roles("admin", "hr_recruiter", "hiring_manager")),
 ) -> dict:
     job = Job(
         title=request.title,
@@ -61,15 +93,7 @@ async def create_job(
     saved = await container.document_repository.create_job(job)
     # Provision a default rubric so newly created jobs can be scored immediately.
     await ensure_job_rubric(container, saved)
-    return {
-        "id": str(saved.id),
-        "title": saved.title,
-        "department": saved.department,
-        "description": saved.description,
-        "location": saved.location,
-        "priority": saved.priority,
-        "skills": saved.skills,
-    }
+    return _job_payload(saved)
 
 
 @router.get("/jobs")
@@ -78,18 +102,70 @@ async def list_jobs(
     user: dict = Depends(get_current_user),
 ) -> list[dict]:
     jobs = await container.document_repository.list_jobs()
-    return [
-        {
-            "id": str(j.id),
-            "title": j.title,
-            "department": j.department,
-            "description": j.description,
-            "location": j.location,
-            "priority": j.priority,
-            "skills": j.skills,
-        }
-        for j in jobs
-    ]
+    return [_job_payload(j) for j in jobs]
+
+
+@router.get("/jobs/{job_id}")
+async def get_job_endpoint(
+    job_id: UUID,
+    container: Container = Depends(get_container),
+    user: dict = Depends(get_current_user),
+) -> dict:
+    """Return the full details of a single job (used by the Job Details modal)."""
+    job = await container.document_repository.get_job(job_id)
+    if job is None:
+        raise NotFoundError(f"Job {job_id} not found")
+    return _job_payload(job)
+
+
+@router.patch("/jobs/{job_id}")
+async def update_job_endpoint(
+    job_id: UUID,
+    request: JobUpdate,
+    container: Container = Depends(get_container),
+    user: dict = Depends(require_roles("admin", "hr_recruiter", "hiring_manager")),
+) -> dict:
+    """Partially update a job vacancy (edit from the Job Details modal)."""
+    job = await container.document_repository.get_job(job_id)
+    if job is None:
+        raise NotFoundError(f"Job {job_id} not found")
+
+    changed: dict = {}
+    if request.title is not None:
+        job.title = request.title
+        changed["title"] = job.title
+    if request.department is not None:
+        job.department = request.department
+        changed["department"] = job.department
+    if request.description is not None:
+        job.description = request.description
+        changed["description"] = job.description
+    if request.location is not None:
+        job.location = request.location
+        changed["location"] = job.location
+    if request.priority is not None:
+        job.priority = normalize_priority(request.priority)
+        changed["priority"] = job.priority
+    if request.skills is not None:
+        # Drop blanks so a saved skills list is always clean.
+        job.skills = [s.strip() for s in request.skills if s and s.strip()]
+        changed["skills"] = job.skills
+
+    job.updated_at = datetime.utcnow()
+    updated = await container.document_repository.update_job(job)
+    if updated is None:
+        raise NotFoundError(f"Job {job_id} not found")
+
+    await container.audit.log(
+        action="update_job",
+        target_type="job",
+        target_id=str(job_id),
+        actor_id=user["id"],
+        actor_role=user["role"],
+        details={"fields": sorted(changed.keys())},
+        correlation_id=get_correlation_id(),
+    )
+    return _job_payload(updated)
 
 
 @router.post("/jobs/{job_id}/rubrics")
@@ -141,10 +217,14 @@ async def upload_job_document(
 async def delete_job_endpoint(
     job_id: UUID,
     container: Container = Depends(get_container),
-    user: dict = Depends(require_roles("admin", "hr_recruiter")),
+    user: dict = Depends(require_roles("admin", "hr_recruiter", "hiring_manager")),
 ) -> dict:
-    from copilot.domain.errors import NotFoundError
-
+    attached_candidates = await container.candidate_repository.list_candidates(job_id=job_id)
+    if attached_candidates:
+        raise ConflictError(
+            "Cannot delete this job because candidates are currently attached to it. "
+            "Please reassign or remove the candidates first."
+        )
     success = await container.document_repository.delete_job(job_id)
     if not success:
         raise NotFoundError(f"Job {job_id} not found")

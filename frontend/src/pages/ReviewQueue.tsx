@@ -210,9 +210,10 @@ export function ReviewQueue() {
         : "/review-queue/decide"
     const reasonText = (reason[taskId] || "").trim()
 
-    // Rejecting a candidate is the ONLY action that mandates a comment. The
-    // backend enforces this too (HTTP 400); we block early for instant feedback.
-    if ((action === "reject" || action === "reject_at_triage") && !reasonText) {
+    // Only a *manager* rejection (decision stage) mandates a comment. Recruiters
+    // may decline a candidate at triage without one — the backend enforces the
+    // same rule (HTTP 400 for a manager reject without a comment).
+    if (action === "reject" && !reasonText) {
       toast.error("A comment explaining the decision is required before rejecting a candidate.")
       return
     }
@@ -259,9 +260,10 @@ export function ReviewQueue() {
       toast.error("Choose a bulk action before applying")
       return
     }
-    const isReject = bulkAction === "reject" || bulkAction === "reject_at_triage"
+    const isReject = bulkAction === "reject"
     if (isReject && !bulkReason.trim()) {
-      // Same rule as the single-row reject — enforced again by the backend (400).
+      // Only a manager rejection requires a comment. Recruiters may bulk-reject
+      // at triage without one; the backend enforces the same rule (400).
       toast.error("A comment explaining the decision is required before rejecting a candidate.")
       return
     }
@@ -421,7 +423,7 @@ export function ReviewQueue() {
             <input
               value={bulkReason}
               onChange={(e) => setBulkReason(e.target.value)}
-              placeholder="Reason (required to reject)…"
+              placeholder={isManager() ? "Comment (required to reject)…" : "Comment (optional)…"}
               className="px-3 py-1.5 border border-surface-border rounded-lg text-sm bg-white w-52"
             />
             <button
@@ -671,7 +673,13 @@ export function ReviewQueue() {
                       value={reason[t.id] ?? (t.manager_comment || t.triage_reason || "")}
                       disabled={isBusy || isTerminal}
                       onChange={(e) => setReason((r) => ({ ...r, [t.id]: e.target.value }))}
-                      placeholder={isTerminal ? "Decision finalized" : "Add rationale or feedback…"}
+                      placeholder={
+                        isTerminal
+                          ? "Decision finalized"
+                          : isManager()
+                          ? "Comment (required to reject)…"
+                          : "Comment (optional)…"
+                      }
                       className="w-full px-2.5 py-1 border border-surface-border rounded-lg text-xs bg-white focus:ring-1 focus:ring-brand-primary"
                     />
                   </td>

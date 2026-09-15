@@ -5,12 +5,18 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr
-from sqlalchemy import select
+from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from copilot.infrastructure.auth.service import create_access_token, hash_password, verify_password
-from copilot.infrastructure.db.models import UserORM
+from copilot.infrastructure.db.models import (
+    AuditEventORM,
+    JobORM,
+    ShortlistORM,
+    SLARuleORM,
+    UserORM,
+)
 from copilot.presentation.dependencies import get_session, require_roles
 
 router = APIRouter(prefix="/auth")
@@ -23,7 +29,7 @@ class LoginRequest(BaseModel):
 
 class UserCreateRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(min_length=6)
     full_name: str
     role: str
 
@@ -96,6 +102,22 @@ async def delete_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot delete currently logged in account",
         )
+    # Detach any records that reference this user so deletion never trips a
+    # foreign-key constraint, even for users with jobs, candidates, or audit
+    # history. Audit rows and created-by columns are nullified (not purged) so
+    # the operational record of what happened is preserved.
+    await session.execute(
+        update(JobORM).where(JobORM.created_by == user_id).values(created_by=None)
+    )
+    await session.execute(
+        update(SLARuleORM).where(SLARuleORM.created_by == user_id).values(created_by=None)
+    )
+    await session.execute(
+        update(ShortlistORM).where(ShortlistORM.created_by == user_id).values(created_by=None)
+    )
+    await session.execute(
+        update(AuditEventORM).where(AuditEventORM.actor_id == user_id).values(actor_id=None)
+    )
     await session.delete(user)
     await session.commit()
     return {"status": "deleted", "id": str(user_id)}

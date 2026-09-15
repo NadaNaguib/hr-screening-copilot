@@ -7,7 +7,8 @@ through the very same use case the single-row buttons use
 audit logging stay identical. This module only adds:
 
 * role/action routing (recruiter -> triage, manager -> decision),
-* the "reject always needs a comment" guard applied *once* before any mutation,
+* the "manager reject always needs a comment" guard applied *once* before any
+  mutation (recruiter triage rejections may omit the comment),
 * a per-task result summary so the UI can report partial success.
 """
 
@@ -24,8 +25,9 @@ from copilot.infrastructure.di import Container
 _TRIAGE_ACTIONS = {"forward_to_manager", "reject_at_triage"}
 # Manager-tier bulk actions (handled by the /decide route).
 _DECIDE_ACTIONS = {"approve", "reject", "edit_and_approve"}
-# Rejecting a candidate always requires an explanatory comment.
-_REJECT_ACTIONS = {"reject", "reject_at_triage"}
+# Only a *manager* rejection (decision stage) requires an explanatory comment.
+# A recruiter may reject at triage without one.
+_REJECT_ACTIONS = {"reject"}
 
 REJECTION_COMMENT_REQUIRED = (
     "A comment explaining the decision is required before rejecting a candidate."

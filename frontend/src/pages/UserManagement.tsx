@@ -36,6 +36,10 @@ export function UserManagement() {
 
   async function createUser(e: React.FormEvent) {
     e.preventDefault()
+    if (form.password.length < 6) {
+      toast.error("Password must be at least 6 characters long")
+      return
+    }
     setSubmitting(true)
     try {
       await apiClient.post("/auth/users", form)
@@ -129,6 +133,7 @@ export function UserManagement() {
               placeholder="Minimum 6 characters"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
+              minLength={6}
               className="w-full px-3 py-2 border border-surface-border rounded-lg text-sm focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary outline-none"
               required
             />
@@ -166,7 +171,7 @@ export function UserManagement() {
           <span className="text-xs text-surface-muted">Total: {users.length} user{users.length !== 1 ? "s" : ""}</span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
+          <table className="w-full min-w-[600px] text-sm text-left">
             <thead className="bg-surface-page text-surface-muted uppercase text-xs">
               <tr>
                 <th className="px-5 py-3">Full Name</th>

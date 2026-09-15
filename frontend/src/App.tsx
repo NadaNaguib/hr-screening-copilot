@@ -1,7 +1,9 @@
-import { Navigate, Route, Routes, useNavigate } from "react-router-dom"
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom"
 import { useEffect, useState } from "react"
 import { getRole, getToken, isAdmin } from "./lib/auth"
+import logo from "./assets/logo.png"
 import { Sidebar } from "./layout/Sidebar"
+import { Menu } from "lucide-react"
 import { Login } from "./pages/Login"
 import { JobsAndCandidates } from "./pages/JobsAndCandidates"
 import { CopilotChat } from "./pages/CopilotChat"
@@ -28,6 +30,8 @@ function RequireAdmin({ children }: { children: JSX.Element }) {
 function PrivateLayout() {
   const navigate = useNavigate()
   const token = getToken()
+  const location = useLocation()
+  const [navOpen, setNavOpen] = useState(false)
 
   useEffect(() => {
     if (!token) {
@@ -35,12 +39,30 @@ function PrivateLayout() {
     }
   }, [token, navigate])
 
+  // Close the mobile drawer whenever the route changes.
+  useEffect(() => {
+    setNavOpen(false)
+  }, [location.pathname])
+
   if (!token) return null
 
   return (
-    <div className="min-h-screen flex">
-      <Sidebar />
-      <main className="flex-1 p-6 overflow-auto">
+    <div className="min-h-screen flex flex-col md:flex-row">
+      {/* Mobile top bar (hidden on desktop) */}
+      <header className="md:hidden sticky top-0 z-40 bg-white border-b border-surface-border flex items-center justify-between px-4 py-3 shrink-0">
+        <button
+          onClick={() => setNavOpen(true)}
+          title="Open navigation menu"
+          className="p-2 -ml-2 rounded-lg text-surface-text hover:bg-surface-page transition"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+        <img src={logo} alt="Vera" className="h-8 w-auto object-contain" />
+        <span className="w-10" aria-hidden="true" />
+      </header>
+
+      <Sidebar mobileOpen={navOpen} onClose={() => setNavOpen(false)} />
+      <main className="flex-1 p-4 sm:p-6 overflow-auto">
         <Routes>
           <Route path="/" element={<Navigate to="/jobs" replace />} />
           <Route path="/jobs" element={<JobsAndCandidates />} />
