@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom"
 import { useEffect, useState } from "react"
 import { getRole, getToken, isAdmin } from "./lib/auth"
+import logo from "./assets/logo.png"
 import { Sidebar } from "./layout/Sidebar"
 import { Menu } from "lucide-react"
 import { Login } from "./pages/Login"
@@ -56,7 +57,7 @@ function PrivateLayout() {
         >
           <Menu className="w-6 h-6" />
         </button>
-        <span className="font-heading font-bold text-brand-primary text-lg">Vera</span>
+        <img src={logo} alt="Vera" className="h-8 w-auto object-contain" />
         <span className="w-10" aria-hidden="true" />
       </header>
 
