@@ -156,7 +156,13 @@ The screening pipeline executes four specialized agents in a deterministic seque
 1. **`evidence_extractor`**: Performs semantic search across candidate chunks, extracting direct quotes mapped to rubric criteria.
 2. **`bias_guard`**: A non-LLM, deterministic regex engine that scans extracted evidence for protected attributes (gender, ethnicity, age, religion, marital status), redacting them and writing an audit trail.
 3. **`rubric_scorer`**: Computes deterministic weighted numeric scores ($[0.0, 1.0]$) while delegating qualitative justification text generation to the LLM.
-4. **`shortlist_drafter`**: Compiles an executive summary and candidate assessment for hiring manager review.
+4. **`interview_question_generator`**: Generates tailored, evidence-grounded interview questions and probes based on candidate skill gaps and rubric evaluations.
+
+> **Core Requirements Alignment.** The MVP is deliberately built as direct adherence to the spec instead of a scaled-down subset:
+> - **Hybrid Retrieval (RRF)** directly implements Functional Requirement BR-02 ("Hybrid Vector Retrieval & Chunking"): dense `pgvector` cosine search + sparse PostgreSQL `tsvector` search fused via Reciprocal Rank Fusion (`k=60`) gives the grounded-evidence foundation used by every downstream agent.
+> - **Regex Bias Guard** directly implements the bias-exclusion requirement of **Variant D6**: protected attributes are deterministically redacted *before* the rubric LLM call, satisfying BRULE-02 and the EU AI Act / EEOC audit requirements.
+> - **Dual Gemini Adapters (`GeminiSdkAdapter` → `GeminiRestAdapter`)** directly implement the provider resilience requirement of **T5 / NFR-04**: the SDK adapter is the primary path; the REST adapter is used as a provider-level fallback (see [ADR-04](adr/ADR-04-gemini-only-provider-fallback.md)) so screening and chat continue when one transport fails.
+> - **Candidate Review Tasks** implement the T5 full product: every screened candidate becomes a review task whose evidence, rubric scores, and interview questions flow through SLA-monitored review stages (`PENDING_TRIAGE → PENDING_MANAGER_REVIEW → APPROVED / REJECTED`).
 
 ### 3.2 Resilience & Degradation
 - **Iteration Breaker**: The LangGraph state machine enforces a maximum of 10 iterations to prevent infinite agent execution loops.
@@ -166,6 +172,8 @@ The screening pipeline executes four specialized agents in a deterministic seque
 ---
 
 ## 4. Gap Analysis Table (Enterprise Target vs. MVP Implementation)
+
+> **Framing.** The table below is not a list of system defects. It is the **planned architectural gap** between the Target Enterprise vision (Part A) and the *local single-node MVP* (Part B). Every enterprise tool deferred here (Kong, Okta, Kafka, Vault, Kubernetes/EKS, Redis cluster, OpenSearch/Milvus, Datadog) is documented Part A infrastructure whose absence in the MVP is an intentional scoping decision for local evaluation — with an explicit interim mitigation and a costed path to close each gap in a production deployment. The core screening business logic (agentic pipeline, bias guard, hybrid retrieval, dual Gemini failover, review-task approvals) is fully implemented in the MVP.
 
 | Component / Feature | Enterprise Target Spec | MVP Implementation | Why Deferred | Interim Mitigation | Effort & Cost to Close Gap |
 |---|---|---|---|---|---|
@@ -213,3 +221,13 @@ The screening pipeline executes four specialized agents in a deterministic seque
   - LLM self-correction via system prompts is vulnerable to indirect prompt injection and stochastic compliance failures.
   - Regulatory compliance (EU AI Act, EEOC guidelines) requires an auditable, provable guarantee that protected attributes were not present in the scoring context.
   - Deterministic pre-processing guarantees 100% attribute exclusion and produces a verifiable audit log for compliance inspection.
+
+### 5.5 Review UX: Candidate-centric Review Tasks + Job-filtered Bulk Actions vs. Monolithic Shortlist Entity
+- **Decision**: Adopt **Candidate-centric Review Tasks with job-filtered bulk actions** as the primary working surface for the T5 review workflow, instead of maintaining a monolithic `Shortlist` entity as a first-class input.
+- **Alternatives Considered**: A persistent `Shortlist` aggregate (name, status `draft|finalized`, list of `ShortlistEntry`) that reviewers edit via modal dialogs before approving.
+- **Rationale for Rejection**:
+  - **Avoids clunky nested modals when editing interview probes.** In the shortlist-modal model, editing one candidate's generated interview questions means opening the shortlist, opening that candidate's entry, opening an inner "edit probes" modal, and reconciling the outer `draft → finalized` state — three levels of nesting with constant risk of losing unsaved edits. With Candidate Review Tasks, `interview_question_generator` outputs probes directly onto the *candidate's* task; reviewers open the task, edit or regenerate the probes inline, and save once.
+  - **Simplifies approval workflows.** Each review task carries its own state machine (`PENDING_TRIAGE → PENDING_MANAGER_REVIEW → APPROVED / REJECTED / EDITED_AND_APPROVED`), SLA deadlines, and audit trail. A monolithic shortlist would split that state across two aggregates (task + shortlist), making RBAC (`AC-04.3`), auto-escalation (BR-05), and audit reconciliation harder and more error-prone.
+  - **Job-filtered bulk actions stay shallow.** Because "shortlist" is a *derived view* of `APPROVED` review tasks (BR-07) rather than a separate input entity, recruiters and managers can bulk-apply job-filtered triage/approval actions in the Review Queue and Jobs & Candidates dashboards without a second bulk-editing surface.
+  - **Export stays derived and auditable.** The `export_shortlist` use case reads approved Candidate Review Tasks per job and emits RFC 4180 CSV, so the digital "shortlist" remains consistent by construction with the audit trail.
+- **Consistency note**: The domain entity `Shortlist`/`ShortlistEntry` remain in the codebase only as the containment/export model; all new screening output and reviewer actions flow through Candidate Review Tasks, and the interview-question generation agent attaches per-candidate probes directly onto the review task.

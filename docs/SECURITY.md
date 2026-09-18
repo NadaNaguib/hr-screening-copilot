@@ -24,7 +24,7 @@
 | Supply Chain | Pinned dependencies, pip-audit |
 | Sensitive Information Disclosure | PII/protected-attribute redaction with audit trail |
 | Model Inversion | No real personal data; synthetic candidates only |
-| Excessive Agency | Tool allow-lists per agent; `finalize_shortlist` gated on manager approval |
+| Excessive Agency | Tool allow-lists per agent; Candidate Review Task actions gated on role + approval state (`decide_candidate` only records export after `APPROVED` / `EDITED_AND_APPROVED`) |
 | Overreliance | Human-in-the-loop; final decision by manager |
 | Theft | No model weights stored; API keys via env |
 

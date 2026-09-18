@@ -38,26 +38,70 @@ DEMO_JOBS = [
     {
         "title": "Senior Python Backend Engineer",
         "department": "Engineering",
-        "description": "Build scalable backend services using Python, FastAPI, PostgreSQL.",
+        "description": (
+            "Build and scale core backend services using Python, FastAPI, and PostgreSQL. "
+            "You will design distributed APIs processing 50k+ requests/sec, own PostgreSQL "
+            "query/tuning and indexing strategies, and contribute to system design decisions "
+            "for microservices, async event-driven queues, and caching layers. Responsibilities "
+            "include mentoring junior engineers, operating Docker-based deployments, and "
+            "maintaining high availability in production."
+        ),
         "location": "Remote",
         "priority": "HIGH",
-        "skills": ["Python", "FastAPI", "PostgreSQL", "System Design"],
+        "skills": [
+            "Python",
+            "FastAPI",
+            "PostgreSQL",
+            "System Design",
+            "Microservices",
+            "Docker",
+            "Redis",
+            "AWS",
+        ],
     },
     {
         "title": "Frontend React Developer",
         "department": "Engineering",
-        "description": "Develop modern React/TypeScript user interfaces with Tailwind CSS.",
+        "description": (
+            "Develop modern, responsive user interfaces with React, TypeScript, and Tailwind "
+            "CSS. You will build accessible data-dense dashboards, design-system components, "
+            "and real-time streaming UI (SSE/WebSockets). Collaborate closely with backend "
+            "engineers on API contracts, ensure UX polish across breakpoints, and own the "
+            "frontend testing strategy."
+        ),
         "location": "Remote",
         "priority": "MEDIUM",
-        "skills": ["React", "TypeScript", "Tailwind CSS", "UX"],
+        "skills": [
+            "React",
+            "TypeScript",
+            "Tailwind CSS",
+            "UX",
+            "HTML/CSS",
+            "REST APIs",
+            "Testing",
+        ],
     },
     {
         "title": "DevOps Engineer",
         "department": "Platform",
-        "description": "Maintain CI/CD pipelines, Docker, Kubernetes, and cloud infrastructure.",
+        "description": (
+            "Maintain and automate CI/CD pipelines, container orchestration, and cloud "
+            "infrastructure. You will own Docker/Kubernetes deployments, Terraform-managed "
+            "Infrastructure-as-Code on AWS, observability (Prometheus/Grafana), and build "
+            "reliability practices including incident response and disaster-recovery drills."
+        ),
         "location": "Hybrid",
         "priority": "LOW",
-        "skills": ["Docker", "Kubernetes", "Terraform", "AWS"],
+        "skills": [
+            "Docker",
+            "Kubernetes",
+            "Terraform",
+            "AWS",
+            "CI/CD",
+            "Prometheus",
+            "Grafana",
+            "Linux",
+        ],
     },
 ]
 
@@ -182,6 +226,15 @@ async def _ensure_jobs(session: AsyncSession) -> list[JobORM]:
                 skills=data.get("skills", []),
             )
             session.add(job)
+        else:
+            # Upsert complete metadata so legacy/default jobs created before this
+            # seed update render all fields in the "View Details" modal (never a
+            # partially-empty detail view).
+            job.department = data["department"]
+            job.description = data["description"]
+            job.location = data["location"]
+            job.priority = data["priority"]
+            job.skills = data.get("skills", [])
         jobs.append(job)
     await session.flush()
     return jobs

@@ -29,7 +29,7 @@ Open http://localhost:3000 and log in as:
 1. Log in as **HR Recruiter**
 2. Navigate to **Jobs & Candidates**
 3. Create a new job: "Senior Python Engineer", add skills: `Python, FastAPI, PostgreSQL, Docker`
-4. Upload a CV (use `Youssef_Eid_CV.pdf` in the repo root for demo)
+4. Upload a CV (use `Sara_Ahmed_CV.pdf` — seeded demo candidate in the repo, see `scripts/seed_full_candidates.py`)
 5. Observe the response — what skills were extracted?
 
 **Expected output**: A JSON response with `extracted_skills: [...]` and a new candidate appearing in the candidate list.
@@ -57,13 +57,13 @@ Open http://localhost:3000 and log in as:
 
 1. As **HR Recruiter**: find the task, set priority to HIGH, click "Forward to Manager"
 2. Log out, log in as **Hiring Manager**
-3. Review the candidate's evidence and shortlist draft
+3. Review the candidate's evidence, rubric scores, and generated interview questions
 4. Click **Approve** with a comment
-5. Verify the shortlist is finalized
+5. Verify the approved candidate appears in the shortlist/export view
 
 **Checkpoint question**: Open `src/copilot/application/use_cases/decide_candidate.py`. 
 - What happens if a recruiter tries to call the `approve` action? (Hint: check RBAC)
-- At what point is `finalize_shortlist` actually called?
+- At what point is the candidate's review task gated into the exported shortlist?
 
 ---
 

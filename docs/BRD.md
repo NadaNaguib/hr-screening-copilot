@@ -14,7 +14,7 @@ The **HR Screening Domain Copilot** is an enterprise-grade, agentic Retrieval-Au
 
 1. **Recruiter Fatigue & Throughput**: Evaluating hundreds of technical resumes against complex rubrics requires significant recruiter effort, leading to screening bottlenecks.
 2. **Fairness & Bias Mitigation**: Unconscious human and algorithmic bias on protected attributes (gender, nationality, age, religion) poses severe ethical and legal risks.
-3. **Accountability & Control (Human-in-the-Loop)**: Purely autonomous AI decision-making is unacceptable in talent acquisition. The platform implements **Variant D6** (Talent Screening: Evidence Extraction, Rubric Scoring, Shortlist Drafting) combined with **T5 as a full product** (Human Review Queue with SLA timers, role-based approval stages, assignment, and escalation).
+3. **Accountability & Control (Human-in-the-Loop)**: Purely autonomous AI decision-making is unacceptable in talent acquisition. The platform implements **Variant D6** (Talent Screening: Evidence Extraction, Rubric Scoring, Interview Question Generation) combined with **T5 as a full product** (Human Review Queue with SLA timers, role-based approval stages, assignment, and escalation).
 
 ---
 
@@ -23,7 +23,7 @@ The **HR Screening Domain Copilot** is an enterprise-grade, agentic Retrieval-Au
 | Persona | Role Key | Primary Responsibilities | Core Jobs to Be Done (JTBD) |
 |---|---|---|---|
 | **HR Recruiter** | `hr_recruiter` | Talent sourcing, initial triage, CV parsing | Upload resumes, initiate automated screening, review extracted evidence, assign priority, forward qualified candidates to hiring managers. |
-| **Hiring Manager** | `hiring_manager` | Final hiring authority, team lead | Review shortlist drafts and rubric justifications, inspect cited evidence, approve or reject candidates with feedback, export final shortlists. |
+| **Hiring Manager** | `hiring_manager` | Final hiring authority, team lead | Review candidate review tasks (rubric justifications, cited evidence, generated interview questions), approve, reject, or edit-and-approve candidates with feedback, export approved candidates. |
 | **Platform Admin** | `admin` | System operations, compliance, break-glass | Configure global and job-specific SLA rules, monitor token consumption and costs, manage system users, execute audited break-glass overrides. |
 
 ---
@@ -33,7 +33,8 @@ The **HR Screening Domain Copilot** is an enterprise-grade, agentic Retrieval-Au
 ### 3.1 In-Scope
 - Automated ingestion of PDF and plaintext CVs with SHA-256 cryptographic deduplication.
 - Dense (pgvector HNSW) and keyword (PostgreSQL tsvector) hybrid search fused via Reciprocal Rank Fusion (RRF).
-- LangGraph-orchestrated 4-agent pipeline: Evidence Extractor, Deterministic Bias Guard, Rubric Scorer, and Shortlist Drafter.
+- LangGraph-orchestrated 4-agent pipeline: Evidence Extractor, Deterministic Bias Guard, Rubric Scorer, and Interview Question Generator.
+- Candidate-centric Review Tasks with job-filtered bulk actions: reviewers action one candidate at a time and can bulk-apply job-filtered triage/approval steps without nested shortlist-modals.
 - Graceful degradation paths from Agentic RAG to Plain RAG during model rate-limiting or service disruptions.
 - Two-stage human approval workflow with role-based separation of duties (Recruiter triage → Manager decision).
 - Full T5 Review Queue product: priority assignment, SLA countdown timers, auto-escalation engine, reviewer analytics.
@@ -61,7 +62,7 @@ The **HR Screening Domain Copilot** is an enterprise-grade, agentic Retrieval-Au
 | **BRULE-04** | **Audited Break-Glass Override** | Platform Admins may override any task state at any time, but must provide a mandatory justification text that is permanently recorded in the immutable task audit log. |
 | **BRULE-05** | **Strict SLA Hierarchy** | SLA breach calculations evaluate job-specific SLA overrides first; if no job-level rule exists, the global SLA default for that priority level is enforced. |
 | **BRULE-06** | **Deduplication Integrity** | Uploaded documents matching an existing SHA-256 hash within the candidate pool are rejected immediately to prevent redundant vector storage and duplicate pipelines. |
-| **BRULE-07** | **Gated Shortlist Finalization** | A job shortlist can only transition from `draft` to `finalized` after the associated review task achieves `APPROVED` status from the Hiring Manager. |
+| **BRULE-07** | **Gated Approval & Finalization** | A candidate can only be exported/finalized after its Candidate Review Task achieves `APPROVED` (or `EDITED_AND_APPROVED`) status from the Hiring Manager. No separate shortlist entity can bypass the review-task gate. |
 | **BRULE-08** | **Grounded Evidence Mandate** | Copilot Chat responses must be strictly grounded in retrieved vector/FTS document chunks with verifiable citation metadata (source file and page number). |
 | **BRULE-09** | **Adversarial Query Immunity** | Queries attempting to extract PII (candidate email, phone, home address), force prompt injection, or demand demographic filtering must be immediately refused by security guardrails. |
 | **BRULE-10** | **Cascade Lifecycle Cleanup** | Deleting a job vacancy or candidate must cleanly cascade to unlinking or purging associated tasks, document chunks, vectors, rubrics, and shortlists. |
@@ -85,14 +86,15 @@ The **HR Screening Domain Copilot** is an enterprise-grade, agentic Retrieval-Au
   - `AC-02.3`: Keyword search uses PostgreSQL `tsvector` with `english` dictionary.
   - `AC-02.4`: Reciprocal Rank Fusion (RRF with $k=60$) combines dense and sparse ranks into a single unified score.
 
-### BR-03: Multi-Agent Screening Pipeline (Variant D6)
-- **Description**: An automated screening pipeline orchestrates four specialized agents in a state graph to evaluate candidate resumes against rubrics.
+### BR-03: Multi-Agent Screening Pipeline with Candidate Review Tasks (Variant D6)
+- **Description**: An automated screening pipeline orchestrates four specialized agents in a state graph to evaluate candidate resumes against rubrics. Each screened candidate is represented as an independent **Candidate Review Task** (`PENDING_TRIAGE → PENDING_MANAGER_REVIEW → APPROVED / REJECTED`) that carries the evidence, scores, and generated interview questions into the human review workflow.
 - **Acceptance Criteria**:
   - `AC-03.1`: `evidence_extractor` maps resume passages to job rubric criteria with quotes and source locations.
   - `AC-03.2`: `bias_guard` applies deterministic regex-based redaction of protected attributes and writes redaction logs before scoring.
   - `AC-03.3`: `rubric_scorer` computes deterministic weighted numeric scores ($[0.0, 1.0]$) while delegating qualitative justification text to the LLM.
-  - `AC-03.4`: `shortlist_drafter` compiles a structured candidate summary and draft recommendation.
+  - `AC-03.4`: `interview_question_generator` generates tailored, evidence-grounded interview questions and probes based on candidate skill gaps and rubric evaluations, replacing the monolithic shortlist-drafting step. Approval is handled through the Candidate Review Task workflow instead of a separate shortlist entity.
   - `AC-03.5`: LangGraph orchestrator enforces an iteration breaker ($\le 10$ steps) and a 30s per-step timeout, automatically falling back to Plain RAG if agent limits are exceeded.
+  - `AC-03.6`: Each completed screening creates a Candidate Review Task linked to the candidate and job, enabling recruiters and managers to review and action candidates without nested shortlist-modals.
 
 ### BR-04: Human Review Queue (T5 Full Product)
 - **Description**: A dedicated review queue supporting task assignment, priority levels, SLA countdowns, auto-escalation, and role-based review actions.
@@ -118,11 +120,11 @@ The **HR Screening Domain Copilot** is an enterprise-grade, agentic Retrieval-Au
   - `AC-06.3`: Responses include clickable citation source cards showing document name, page number, and quoted excerpt.
   - `AC-06.4`: Security guardrails intercept adversarial prompts (PII, prompt injection, demographic bias) and refuse them gracefully.
 
-### BR-07: Shortlist Export
-- **Description**: Approved candidates can be exported in standardized formats for external hiring workflows.
+### BR-07: Candidate Approval & Export
+- **Description**: Approved candidates are exported from their Candidate Review Tasks in standardized formats for external hiring workflows.
 - **Acceptance Criteria**:
-  - `AC-07.1`: Shortlist export endpoint `GET /api/v1/shortlist/{job_id}/export?format=csv` generates RFC 4180-compliant CSV data.
-  - `AC-07.2`: Frontend provides a one-click CSV export button on the Jobs & Candidates dashboard.
+  - `AC-07.1`: Export endpoint `GET /api/v1/shortlist/{job_id}/export?format=csv` generates RFC 4180-compliant CSV data from approved Candidate Review Tasks.
+  - `AC-07.2`: Frontend provides a one-click CSV export button on the Jobs & Candidates dashboard. ("Shortlist" now refers to the *derived view* of `APPROVED` review tasks; it is not a separate input entity.)
 
 ### BR-08: Observability & AI Control Panel
 - **Description**: Comprehensive tracking of token usage, financial expenditure, and system diagnostics.
@@ -179,7 +181,7 @@ This matrix maps every Business Requirement (BR) to its architectural component,
 | **BR-04** | High | Review Queue (T5) | `frontend/src/pages/ReviewQueue.tsx`, `routers/review_queue.py` | UI role buttons, SLA countdown badges | ✅ Implemented |
 | **BR-05** | Medium | SLA Engine | `src/copilot/domain/sla_rule.py`, `routers/admin_sla_rules.py` | SLA countdown timers, case-insensitive rules | ✅ Implemented |
 | **BR-06** | High | Chat / SSE | `src/copilot/application/use_cases/ask_copilot.py`, `CopilotChat.tsx` | SSE streaming test, persistent chat history | ✅ Implemented |
-| **BR-07** | Medium | Shortlist / Export | `src/copilot/presentation/routers/review_queue.py`, `export_shortlist.py` | `GET /shortlist/{id}/export?format=csv` | ✅ Implemented |
+| **BR-07** | Medium | Review Task Export | `src/copilot/presentation/routers/review_queue.py`, `export_shortlist.py` | `GET /api/v1/shortlist/{job_id}/export?format=csv` | ✅ Implemented |
 | **BR-08** | High | Observability | `src/copilot/infrastructure/observability/token_cost.py`, `AISettings.tsx` | Dynamic ledger file, live KPI dashboard | ✅ Implemented |
 | **BR-09** | High | Auth & Admin | `src/copilot/presentation/routers/admin_users.py`, `UserManagement.tsx` | JWT bearer tests, user remove modal | ✅ Implemented |
 | **BR-10** | High | Candidate Mimic | `src/copilot/application/use_cases/mimic_candidate.py`, `routers/jobs.py` | 1-click "Mimic CV & Match" button | ✅ Implemented |

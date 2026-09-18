@@ -75,3 +75,5 @@ gitleaks-report.json
 
 # Alembic local
 alembic.ini.bak
+# Local documentation & private planning files
+.local-docs/

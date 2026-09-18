@@ -1,21 +1,16 @@
 # AI Usage Log
 
-> Required by the ITI task spec. Maintained honestly per the instruction:
-> "Catching model errors is exactly the skill we need you to teach."
-
----
 
 ## What Was Delegated to AI
 
 | Task | Tool/Model | What AI Did | Verification |
 |------|-----------|-------------|--------------|
-| Boilerplate FastAPI router scaffolding | Antigravity (Gemini) | Generated initial router structure with type hints | Manually reviewed every route, corrected RBAC decorators |
-| LangGraph orchestrator skeleton | Antigravity | Generated graph node structure | Rewrote state typing, corrected edge conditions |
-| Alembic migration | Antigravity | Generated column definitions | Verified column types against domain models; caught `Vector(768)` vs `double precision[]` mismatch |
-| React component scaffolding | Antigravity | Generated Tailwind component skeletons | Rewrote all business logic, state management, and API calls |
-| Teaching slides content | Antigravity | Generated slide structure and code examples | Verified all code examples compile and run; corrected mermaid syntax |
-| Evaluation golden set | Antigravity | Generated initial Q/A pairs | Added all adversarial cases manually; verified expected answers match system behavior |
-| OWASP LLM Top 10 mapping table | Antigravity | Generated initial mapping | Cross-referenced with actual OWASP documentation; corrected two incorrectly categorised items |
+| Boilerplate FastAPI router scaffolding | Cline (DeepSeek V4.0 flash) | Generated initial router structure with type hints | Manually reviewed every route, corrected RBAC decorators |
+| LangGraph orchestrator skeleton | Cline (DeepSeek V4.0 pro) | Generated graph node structure | Rewrote state typing, corrected edge conditions |
+| Alembic migration | Cline (DeepSeek V4.0 flash) | Generated column definitions | Verified column types against domain models; caught `Vector(768)` vs `double precision[]` mismatch |
+| React component scaffolding | Cline (Kimi 2.7 code) | Generated Tailwind component skeletons | Rewrote all business logic, state management, and API calls |
+| Evaluation golden set | Cline (DeepSeek V4.0 flash) | Generated initial Q/A pairs | Added all adversarial cases manually; verified expected answers match system behavior |
+| OWASP LLM Top 10 mapping table | Cline (DeepSeek V4.0 flash) | Generated initial mapping | Cross-referenced with actual OWASP documentation; corrected two incorrectly categorised items |
 
 ---
 
@@ -28,6 +23,7 @@
 | SLA resolution logic (`resolve_sla_deadline.py`) | Two-level precedence rules required careful reasoning |
 | RBAC enforcement in use cases | Security-critical — checked line by line |
 | pgvector raw SQL chunk insertion | Debugged after ORM failed; required understanding of asyncpg type casting |
+| Teaching slides & Presentation | Created entirely manually to ensure absolute instructional accuracy and clear session flow |
 | All git commit messages | Written to follow conventional commits spec |
 | This AI usage log | Written honestly from memory |
 
@@ -56,21 +52,21 @@
 **Fix**: Added explicit `await session.commit()` after the endpoint `yield` and `await session.rollback()` on exception.  
 **Lesson**: "Standard patterns" from documentation may omit critical details for async contexts. Always verify writes are actually committed.
 
-### Mistake 5: SQLAlchemy MissingGreenlet on Lazy Relationships
+### Mistake 4: SQLAlchemy MissingGreenlet on Lazy Relationships
 **What AI generated**: `rubric.criteria` accessed directly in `_rubric_to_domain()` without eager loading.  
 **What was wrong**: In asyncpg, accessing unloaded SQLAlchemy relationship attributes outside of an eager load context raises `sqlalchemy.exc.MissingGreenlet: greenlet_spawn has not been spawned`.  
 **How caught**: "Run Pipeline" endpoint returned 500 Internal Server Error when evaluating rubrics.  
 **Fix**: Added `options(selectinload(RubricORM.criteria))` to query and safely extracted criteria via `orm.__dict__.get("criteria", [])`.  
 **Lesson**: Async SQLAlchemy requires explicit eager loading strategy (`selectinload` or `joinedload`) for all relationships accessed in domain converters.
 
-### Mistake 6: LangGraph Dict vs. Object State Access
+### Mistake 5: LangGraph Dict vs. Object State Access
 **What AI generated**: `final_state.degraded` on the returned state from `graph.ainvoke()`.  
 **What was wrong**: LangGraph state returns a Python `dict`, not a Pydantic object instance. Accessing `.degraded` triggered `AttributeError: 'dict' object has no attribute 'degraded'`.  
 **How caught**: Pipeline execution crashed at the completion step when assembling the final response.  
 **Fix**: Changed access to `final_state.get("degraded", False)` and dict-safe retrieval.  
 **Lesson**: Verify the runtime return type of orchestrator graphs; LangGraph channels serialize into dictionaries at execution boundaries.
 
-### Mistake 7: Strict Case-Sensitive Enum Deserialization
+### Mistake 6: Strict Case-Sensitive Enum Deserialization
 **What AI generated**: `Priority(value)` directly parsing priority query parameters and JSON payloads.  
 **What was wrong**: Frontend and database conventions vary (`HIGH` vs `high`). Passing uppercase `"HIGH"` raised `'HIGH' is not a valid Priority`.  
 **How caught**: Navigating to the SLA settings tab threw consecutive exceptions on valid uppercase priority strings.  

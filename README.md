@@ -1,13 +1,15 @@
 # Domain Copilot — HR Talent Screening Platform
 
 > **Variant**: D6 (HR Talent Screening) + T5 (Human Review Queue as full product)
-> ITI Dev Instructor Task — Nada Naguib
+> ITI Dev Instructor Task — Nada Naguib Asfour
 
 A production-quality **Agentic RAG** platform that assists HR teams in screening candidates while preserving human decision authority and providing a full bias audit trail.
 
+**How it works (workflow)**: Each uploaded CV runs through a LangGraph-orchestrated pipeline of four isolated agents — `evidence_extractor` → `bias_guard` → `rubric_scorer` → `interview_question_generator` — then lands in a Candidate Review Task with SLA timers and role-based approval gates. See [Agentic Workflow](docs/AGENTIC-WORKFLOW.md) for the full graph, timeouts, failover, and approval flow.
+
 **Demo Videos**:
-- 🎬 Product demo (5–8 min): *(link pending — recording in progress)*
-- 🎓 Teaching session (10 min): *(link pending — recording in progress)*
+- 🎬 Product demo (5–8 min): (https://youtu.be/RYDBQ5mglec)
+- 🎓 Teaching session (10 min): (https://youtu.be/AuYZ-2HlKpQ)
 
 ---
 
@@ -127,7 +129,7 @@ These accounts are created by `scripts/seed.py` on first startup:
 
 **Step 3** — Upload a CV
 - Click **Upload CV** next to the job (or click **"Mimic CV & Match"** for instant candidate generation)
-- Upload `Youssef_Eid_CV.pdf` (included in repo root)
+- Upload `Sara_Ahmed_CV.pdf` (seeded demo candidate; see `scripts/seed_full_candidates.py`)
 - Observe extracted skills in the response
 
 **Step 4** — Run the screening pipeline
@@ -212,7 +214,7 @@ Results are written to `docs/EVALUATION.md`.
 ├── scripts/               # Seed script, synthetic corpus generator
 ├── eval/                  # Evaluation harness + golden Q/A set (25 pairs)
 ├── teaching/              # Teaching pack (slides, lab, answer key)
-├── docs/                  # BRD, SYSTEM-DESIGN, ARCHITECTURE, SECURITY, EVALUATION, ADRs
+├── docs/                  # BRD, SYSTEM-DESIGN, ARCHITECTURE, AGENTIC-WORKFLOW, SECURITY, EVALUATION, ADRs
 ├── Dockerfile             # Multi-stage Python image
 ├── docker-compose.yml     # db + migrate + api + web
 └── .env.example           # Environment variable template
@@ -222,16 +224,21 @@ Results are written to `docs/EVALUATION.md`.
 
 ## Documentation
 
+### Documentation Index
+
 | Document | Description |
 |---|---|
 | [BRD](docs/BRD.md) | Business requirements, personas, traceability matrix |
-| [System Design](docs/SYSTEM-DESIGN.md) | Target architecture (Part A) + MVP gap table (Part B) |
+| [System Design](docs/SYSTEM-DESIGN.md) | Target architecture (Part A) + MVP gap table (Part B) + design decisions |
+| [Agentic Workflow](docs/AGENTIC-WORKFLOW.md) | LangGraph graph, state transitions, agent isolation, timeouts, failover, approval gates |
 | [Architecture](docs/ARCHITECTURE.md) | C4 diagrams, sequence diagrams, ER, ADRs |
 | [Security](docs/SECURITY.md) | OWASP Web + LLM Top 10 mapping |
 | [Evaluation](docs/EVALUATION.md) | 25 golden Q/A results with adversarial analysis |
 | [AI Usage Log](docs/AI-USAGE-LOG.md) | What was delegated to AI, mistakes caught, verification |
-| [Project Status](docs/PROJECT_STATUS.md) | Living plan tracking all spec requirements |
+| [ADRs](docs/adr/) | Architecture Decision Records (chunking, human gate, RBAC/SLA, Gemini fallback) |
 | [Teaching Pack](teaching/) | Slides, lab, answer key, learning outcomes, common mistakes |
+
+> Planning artifacts (`PLAN.md`, `PROJECT_STATUS.md`) and the original task PDF live in the git-ignored `.local-docs/` folder.
 
 ---
 

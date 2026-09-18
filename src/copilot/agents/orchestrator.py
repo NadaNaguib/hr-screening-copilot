@@ -132,7 +132,7 @@ KNOWN_CANDIDATE_NAMES = [
     ("Carol White", ["carol white", "carol"]),
     ("David Brown", ["david brown", "david"]),
     ("Eva Green", ["eva green", "eva"]),
-    ("Youssef Eid", ["youssef eid", "youssef"]),
+    ("Sara Ahmed", ["sara ahmed", "sara"]),
     ("Elena Rostova", ["elena rostova", "elena"]),
     ("Samira El-Sayed", ["samira el-sayed", "samira el sayed", "samira"]),
 ]
@@ -759,7 +759,7 @@ def _build_agentic_rag_graph(llm: LLMPort):
                     )
             elif "machine learning" in ql or " ai" in ql or "ml" in ql:
                 lines.append(
-                    "According to **Youssef_Eid_CV.pdf** (Page 1) [1], **Youssef Eid** has deep Machine Learning and AI experience, with 7 years building PyTorch transformer pipelines, vector search, and automated document intelligence."
+                    "According to **Sara_Ahmed_CV.pdf** (Page 1) [1], **Sara Ahmed** has deep Machine Learning and AI experience, with 7 years building PyTorch transformer pipelines, vector search, and automated document intelligence."
                 )
             elif "postgresql" in ql or "database" in ql or "sql" in ql:
                 lines.append(
@@ -861,7 +861,7 @@ class LangGraphOrchestrator(OrchestratorPort):
                     "evidence_extractor",
                     "bias_guard",
                     "rubric_scorer",
-                    "shortlist_drafter",
+                    "interview_question_generator",
                 ]:
                     yield {"type": "agent_event", "data": {"agent": agent, "status": "done"}}
             else:
