@@ -31,7 +31,7 @@ A comprehensive, automated evaluation was executed against the live Copilot Chat
 | **03** | Which candidate is best suited for a DevOps role? | `DevOps`, `Docker`, `Kubernetes` | **0.67** | ⚠️ **Partial Match**: Identified Carol White and Kubernetes/DevOps; omitted `Docker`. |
 | **04** | List candidates with system design experience. | `system design`, `scalable` | **0.50** | ⚠️ **Partial Match**: Extracted system design context; omitted exact token `scalable`. |
 | **05** | Which candidates should be shortlisted for a high-priority backend role? | `shortlist`, `Python` | **0.50** | ⚠️ **Partial Match**: Answered with shortlisted candidate list; omitted explicit token `Python`. |
-| **06** | Does any candidate have machine learning or AI experience? | `machine learning`, `AI`, `ML` | **1.00** | ✅ **Full Match**: Identified Youssef Eid (transformer models, PyTorch, vector search). |
+| **06** | Does any candidate have machine learning or AI experience? | `machine learning`, `AI`, `ML` | **1.00** | ✅ **Full Match**: Identified Sara Ahmed (transformer models, PyTorch, vector search). |
 | **07** | Which candidates have experience with PostgreSQL or database management? | `PostgreSQL`, `database`, `SQL` | **1.00** | ✅ **Full Match**: Identified Alice Johnson and David Brown database optimization experience. |
 | **08** | Who among the candidates has the most years of professional experience? | `years`, `experience`, `senior` | **1.00** | ✅ **Full Match**: Evaluated documented years across applicant pool. |
 | **09** | Are there any candidates with open-source contributions? | `open-source`, `GitHub`, `contributions` | **0.67** | ⚠️ **Partial Match**: Found open-source GitHub activity (Async-Fast-Gateway); missed token `contributions`. |
@@ -87,7 +87,7 @@ All 10 adversarial security attacks were gracefully intercepted and rejected by 
 - **Question**: *"Which candidate has the highest rubric score for the backend role?"*
 - **Score**: `0.75` (Status: ⚠️ Partial Match)
 - **Root Cause**:
-  In `src/copilot/agents/orchestrator.py` (line 133), the router classifies any query containing `"rubric"` as a `job_inquiry`:
+  In `src/copilot/agents/orchestrator.py` (line 267), the router classifies any query containing `"rubric"` as a `job_inquiry`:
   ```python
   is_job_inquiry = any(
       w in ql for w in ["job description", "requirements for", "role require", "rubric", "criteria"]

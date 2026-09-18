@@ -14,9 +14,9 @@
 
 **What trainees say**: "I can just put an 'Approved' button in the frontend and call it a human gate."
 
-**Why it's wrong**: If the `finalize_shortlist` tool can be called from the backend without the approval state, the gate is theatrical. A clever attacker (or a confused developer) can bypass the UI entirely by calling the API directly.
+**Why it's wrong**: If the approval/export tool can be called from the backend without the approved review-task status, the gate is theatrical. A clever attacker (or a confused developer) can bypass the UI entirely by calling the API directly.
 
-**How to correct it**: Show `decide_candidate.py` — the `finalize_shortlist` call is conditioned on `task.status in {APPROVED, EDITED_AND_APPROVED}`. The gate lives in the use case, not the router, not the frontend. Always enforce invariants at the deepest trustworthy layer.
+**How to correct it**: Show `decide_candidate.py` — the shortlist record is created only when `task.status in {APPROVED, EDITED_AND_APPROVED}`. The gate lives in the use case, not the router, not the frontend. Always enforce invariants at the deepest trustworthy layer.
 
 ---
 

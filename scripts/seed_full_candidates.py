@@ -380,9 +380,9 @@ EDUCATION
 """,
     },
     {
-        "full_name": "Youssef Eid",
-        "email": "youssef.eid@example.com",
-        "phone": "+20-100-555-0199",
+        "full_name": "Sara Ahmed",
+        "email": "sara.ahmed@example.com",
+        "phone": "+1-415-555-0199",
         "job_title": "Senior Python Backend Engineer",
         "years_of_experience": 7.0,
         "overall_score": 92.0,
@@ -401,7 +401,7 @@ EDUCATION
         "education": [
             {
                 "degree": "B.S. in Computer Science & Artificial Intelligence",
-                "institution": "Cairo University",
+                "institution": "Stanford University",
                 "year": "2013-2017",
                 "honors": "First Class Honors",
             }
@@ -414,14 +414,14 @@ EDUCATION
                 "description": "Architected AI-powered document extraction pipelines using PyTorch, HuggingFace Transformers, and FastAPI. Built high-scale vector search pipelines with pgvector.",
             },
             {
-                "company": "SmartTech MENA",
+                "company": "SmartTech Labs",
                 "role": "Python Machine Learning Engineer",
                 "years": "2017-2020",
                 "description": "Trained and deployed deep learning models in production with Python, Docker, and PostgreSQL.",
             },
         ],
-        "cv_text": """YOUSSEF EID
-Email: youssef.eid@example.com | Phone: +20-100-555-0199 | Location: Cairo, Egypt | GitHub: github.com/youssefeid
+        "cv_text": """SARA AHMED
+Email: sara.ahmed@example.com | Phone: +1-415-555-0199 | Location: San Francisco, CA | GitHub: github.com/saraahmed
 
 PROFESSIONAL SUMMARY
 Senior AI and Python Backend Engineer with 7 years of deep experience building production Machine Learning (ML), Natural Language Processing (NLP), and vector search systems. Expert in combining PyTorch deep learning models with high-speed FastAPI microservices and PostgreSQL/pgvector pipelines.
@@ -439,12 +439,12 @@ Senior AI & Backend Engineer | DeepAI Solutions | 2020 – Present
 • Containerized ML inference services with Docker and optimized GPU memory utilization, cutting inference latency by 50%.
 • Mentored junior machine learning engineers and reviewed production ML deployment pipelines.
 
-Python Machine Learning Engineer | SmartTech MENA | 2017 – 2020
+Python Machine Learning Engineer | SmartTech Labs | 2017 – 2020
 • Developed predictive analytics and recommendation engines in Python and Scikit-Learn.
 • Deployed RESTful API inference endpoints using FastAPI and PostgreSQL backend databases.
 
 EDUCATION
-• B.S. in Computer Science & Artificial Intelligence | Cairo University (2013 – 2017)
+• B.S. in Computer Science & Artificial Intelligence | Stanford University (2013 – 2017)
   First Class Honors, Graduation Project: Neural Semantic Search Engine (Ranked #1)
 """,
     },
@@ -591,28 +591,26 @@ async def run_seed():
     embedding_adapter = GeminiEmbeddingAdapter()
 
     async with session_factory() as session:
-        # 1. Clean up duplicate uploaded candidates with name 'Youssef_Eid_CV.pdf'
+        # 1. Clean up duplicate uploaded candidates with name 'Sara_Ahmed_CV.pdf'
         stmt_dup = select(CandidateORM).where(CandidateORM.full_name.ilike("%Youssef%"))
         res_dup = await session.execute(stmt_dup)
-        youssef_list = res_dup.scalars().all()
-        if len(youssef_list) > 1:
-            keep = youssef_list[0]
-            keep.full_name = "Youssef Eid"
-            for other in youssef_list[1:]:
-                # find docs with this candidate_id
-                docs_res = await session.execute(select(DocumentORM))
-                for doc_row in docs_res.scalars().all():
-                    meta = doc_row.metadata_ or {}
-                    if str(meta.get("candidate_id")) == str(other.id):
-                        await session.execute(
-                            delete(ChunkORM).where(ChunkORM.document_id == doc_row.id)
-                        )
-                        await session.delete(doc_row)
-                await session.execute(
-                    delete(ReviewTaskORM).where(ReviewTaskORM.candidate_id == other.id)
-                )
-                await session.delete(other)
+        legacy_youssef_list = res_dup.scalars().all()
+        for legacy in legacy_youssef_list:
+            # Migrate legacy 'Youssef Eid' uploads to the generic seed name so the
+            # demo dataset is fully generic and does not reference a specific person.
+            legacy.full_name = "Sara Ahmed"
+            legacy.email = "sara.ahmed@example.com"
+            docs_res = await session.execute(select(DocumentORM))
+            for doc_row in docs_res.scalars().all():
+                meta = doc_row.metadata_ or {}
+                if str(meta.get("candidate_id")) == str(legacy.id):
+                    doc_row.filename = "Sara_Ahmed_CV.pdf"
+                    if meta.get("full_name"):
+                        meta["full_name"] = "Sara Ahmed"
+                    doc_row.metadata_ = meta
             await session.flush()
+        await session.execute(select(CandidateORM))
+        await session.flush()
 
         # 2. Map jobs
         jobs_res = await session.execute(select(JobORM))

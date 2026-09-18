@@ -191,7 +191,7 @@ async def test_screening_runs_agents_when_not_degraded(
         "evidence_extractor",
         "bias_guard",
         "rubric_scorer",
-        "shortlist_drafter",
+        "interview_question_generator",
     ]
     result = next(event for event in events if event["type"] == "result")
     assert result["data"]["degraded"] is False

@@ -60,7 +60,7 @@ C4Component
         Component(usecases, "Use Cases", "Python async functions", "upload_candidate, run_screening_pipeline, triage_candidate, decide_candidate, ask_copilot, export_shortlist, compute_reviewer_stats, manage_sla_rules")
         Component(ports, "Ports", "Python Protocols", "LLMPort, EmbeddingPort, ReviewTaskRepositoryPort, DocumentRepositoryPort")
         Component(domain, "Domain", "Python dataclasses + Enums", "ReviewTask (state machine), Candidate, Job, SLARule, Shortlist, Evidence, BiasRules, Errors")
-        Component(agents, "Agents + Orchestrator", "LangGraph", "evidence_extractor, bias_guard, rubric_scorer, shortlist_drafter, orchestrator (iteration breaker, per-step timeout, degrade path)")
+        Component(agents, "Agents + Orchestrator", "LangGraph", "evidence_extractor, bias_guard, rubric_scorer, interview_question_generator, orchestrator (iteration breaker, per-step timeout, degrade path)")
         Component(infra_db, "DB Infrastructure", "SQLAlchemy + asyncpg", "ORM models, Alembic migrations, async session, pgvector raw SQL")
         Component(infra_llm, "LLM Infrastructure", "Gemini SDK + REST", "GeminiSdkAdapter, GeminiRestAdapter, FallbackPolicy, EmbeddingAdapter")
         Component(infra_retrieval, "Retrieval", "pgvector + tsvector", "Hybrid search: dense (cosine) + keyword (tsvector) + RRF fusion")
@@ -93,7 +93,7 @@ sequenceDiagram
     participant EE as evidence_extractor
     participant BG as bias_guard
     participant RS as rubric_scorer
-    participant SD as shortlist_drafter
+    participant SD as interview_question_generator
     participant DB as PostgreSQL
     participant LLM as Gemini API
 
@@ -124,16 +124,16 @@ sequenceDiagram
     Orch->>RS: score_rubric(evidence, job_criteria)
     RS->>LLM: generate(system_prompt, redacted_evidence) → justification only
     Note over RS: Numeric scores computed deterministically
-    RS-->>Orch: state{rubric_scores={...}, shortlist_score=0.82}
+    RS-->>Orch: state{rubric_scores={...}, overall_score=0.82}
 
-    Orch->>SD: draft_shortlist(evidence, scores)
-    SD->>LLM: generate(summary_prompt, evidence)
-    LLM-->>SD: narrative summary
-    SD-->>Orch: state{shortlist_draft="..."}
+    Orch->>SD: generate_interview_questions(evidence, scores, job_skills)
+    SD->>LLM: generate(system_prompt, candidate_skills, skill_gaps)
+    LLM-->>SD: 3-5 tailored interview probes (JSON)
+    SD-->>Orch: state{interview_probes=[...]}
 
     Orch-->>API: screening complete
-    API->>DB: Update ReviewTask (shortlist_draft stored)
-    API-->>FE: SSE: {event: "complete", shortlist_draft: "..."}
+    API->>DB: Create Candidate Review Task (probes attached)
+    API-->>FE: SSE: {event: "complete", interview_probes: "..."}
 
     Note over Recruiter,DB: HUMAN GATE — Recruiter triages
 
@@ -149,8 +149,8 @@ sequenceDiagram
     Manager->>FE: Approve with comment
     FE->>API: POST /review-queue/decide {action: approve, reason: "..."}
     API->>DB: ReviewTask.status → APPROVED
-    API->>SD: finalize_shortlist(shortlist_id) [GATED — only runs if APPROVED]
-    SD->>DB: Mark shortlist as finalized
+    API->>SD: approve decision (GATED — only runs if APPROVED)
+    SD->>DB: Record approved candidate in shortlist/export view
     API->>DB: Write audit log entry
     API-->>FE: {status: APPROVED}
 ```
@@ -315,6 +315,8 @@ erDiagram
     CANDIDATE ||--o{ DOCUMENT_CHUNK : "has chunks"
     CANDIDATE ||--|| REVIEW_TASK : "has task"
 ```
+
+> **Note (Design Decision 5.5)**: `SHORTLIST`/`SHORTLIST_ENTRY` are the *derived export/containment view* — they are written only after a Candidate Review Task reaches `APPROVED` / `EDITED_AND_APPROVED`. The interactive screening/review surface is the `REVIEW_TASK` entity.
 
 ---
 

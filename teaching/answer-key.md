@@ -30,10 +30,10 @@
 - The RBAC check happens at the FastAPI dependency layer — before any use-case code runs
 - Even if the recruiter crafts a raw HTTP request, the role claim in the JWT is validated server-side
 
-**When is `finalize_shortlist` called?**
-- In `decide_candidate.py`, after status transitions to `APPROVED` or `EDITED_AND_APPROVED`
-- The orchestrator's `shortlist_drafter` agent calls the tool only if it receives a "gate_open=True" signal from the decide use case
-- Without the approved status, the tool call is blocked and returns an `AuthorizationError`
+**When is the candidate's export/approval gate applied?**
+- In `decide_candidate.py`, after the review task status transitions to `APPROVED` or `EDITED_AND_APPROVED`
+- The `interview_question_generator` agent's outputs (evidence, rubric scores, tailored probes) are attached per-candidate; final approval and shortlist/export are governed by the review-task state machine
+- The gated `finalize` tool only runs if the task carries an approved status; without the approved status, the tool call is blocked and returns an `AuthorizationError`
 
 ---
 
